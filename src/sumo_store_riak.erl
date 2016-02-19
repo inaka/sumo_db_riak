@@ -228,11 +228,11 @@ find_by(DocName, Conditions, State) ->
 ) -> sumo_store:result([sumo_internal:doc()], state()).
 find_by(DocName, Conditions, Limit, Offset, State) when is_list(Conditions) ->
   IdField = sumo_internal:id_field_name(DocName),
-  %% If the key field is present in the conditions, we are looking for a
-  %% particular document. If not, it is a general query.
-  case lists:keyfind(IdField, 1, Conditions) of
-    {_K, Key} ->
-      find_by_id_field(DocName, Key, State);
+  %% If **ONLY** the key field is present in the conditions, we are looking
+  %% for a particular document. Otherwise, it is a general query.
+  case Conditions of
+    [{IdField, Value}] ->
+      find_by_id_field(DocName, Value, State);
     _ ->
       find_by_query(DocName, Conditions, Limit, Offset, State)
   end;
@@ -414,6 +414,8 @@ sleep(Doc) ->
   sumo_utils:doc_transform(fun sleep_fun/1, Doc).
 
 %% @private
+sleep_fun({_, FieldName, undefined}) when FieldName /= id ->
+  <<"$nil">>;
 sleep_fun({FieldType, _, FieldValue})
     when FieldType =:= datetime; FieldType =:= date ->
   case {FieldType, sumo_utils:is_datetime(FieldValue)} of
@@ -428,7 +430,7 @@ sleep_fun({_, _, FieldValue}) ->
 wakeup(Doc) ->
   sumo_utils:doc_transform(fun wakeup_fun/1, Doc).
 
-wakeup_fun({_, _, FieldValue}) when FieldValue =:= <<"undefined">> ->
+wakeup_fun({_, _, <<"$nil">>}) ->
   undefined;
 wakeup_fun({FieldType, _, FieldValue})
     when FieldType =:= datetime; FieldType =:= date ->
@@ -441,8 +443,6 @@ wakeup_fun({integer, _, FieldValue}) when is_binary(FieldValue) ->
   binary_to_integer(FieldValue);
 wakeup_fun({float, _, FieldValue}) when is_binary(FieldValue) ->
   binary_to_float(FieldValue);
-wakeup_fun({string, _, FieldValue}) when is_binary(FieldValue) ->
-  binary_to_list(FieldValue);
 wakeup_fun({_, _, FieldValue}) ->
   FieldValue.
 
@@ -603,12 +603,12 @@ build_query1({Name, 'like', Value}, _EscapeFun, _QuoteFun) ->
   build_query1({Name, NewVal}, Bypass, Bypass);
 build_query1({Name, 'null'}, _EscapeFun, _QuoteFun) ->
   %% null: (Field:undefined OR (NOT Field:[* TO *]))
-  Val = {'or', [{Name, <<"undefined">>}, {'not', {Name, <<"[* TO *]">>}}]},
+  Val = {'or', [{Name, <<"$nil">>}, {'not', {Name, <<"[* TO *]">>}}]},
   Bypass = fun(X) -> X end,
   build_query1(Val, Bypass, Bypass);
 build_query1({Name, 'not_null'}, _EscapeFun, _QuoteFun) ->
-  %% not_null: (Field:[* TO *] AND -Field:undefined)
-  Val = {'and', [{Name, <<"[* TO *]">>}, {Name, '/=', <<"undefined">>}]},
+  %% not_null: (Field:[* TO *] AND -Field:<<"$nil">>)
+  Val = {'and', [{Name, <<"[* TO *]">>}, {Name, '/=', <<"$nil">>}]},
   Bypass = fun(X) -> X end,
   build_query1(Val, Bypass, Bypass);
 build_query1({Name, Value}, _EscapeFun, QuoteFun) ->
