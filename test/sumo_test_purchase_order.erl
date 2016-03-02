@@ -2,62 +2,68 @@
 
 -behaviour(sumo_doc).
 
--opaque address() ::
-  #{
-    line1    => binary(),
-    line2    => binary(),
-    city     => binary(),
-    state    => binary(),
-    zip_code => binary(),
-    country  => binary()
-  }.
+-type address() :: #{
+  line1    => binary(),
+  line2    => binary(),
+  city     => binary(),
+  state    => binary(),
+  zip_code => binary(),
+  country  => binary()
+}.
 
--opaque item() ::
-  #{
-    part_num      => binary(),
-    product_name  => binary(),
-    quantity      => pos_integer(),
-    unit_price    => pos_integer(),
-    price         => pos_integer()
-  }.
+-type item() :: #{
+  part_num      => binary(),
+  product_name  => binary(),
+  quantity      => pos_integer(),
+  unit_price    => pos_integer(),
+  price         => pos_integer()
+}.
 -type items() :: [item()].
 
--opaque purchase_order() ::
-  #{
-    id          => binary(),
-    created_at  => binary(),
-    order_num   => binary(),
-    po_date     => binary(),
-    ship_to     => address(),
-    bill_to     => address(),
-    items       => items(),
-    currency    => binary(),
-    total       => pos_integer()
-  }.
+-type purchase_order() :: #{
+  id          => binary(),
+  created_at  => calendar:datetime(),
+  order_num   => binary(),
+  po_date     => calendar:datetime(),
+  ship_to     => address(),
+  bill_to     => address(),
+  items       => items(),
+  currency    => binary(),
+  total       => pos_integer()
+}.
+
 -export_type([purchase_order/0, address/0, item/0, items/0]).
 
--export([new/8, id/1, id/2, items/1, items/2, currency/1, currency/2,
-         order_num/1, order_num/2]).
--export([new_address/6, new_item/5]).
+%% API
+-export([
+  new/8,
+  id/1, id/2,
+  items/1, items/2,
+  currency/1, currency/2,
+  order_num/1, order_num/2,
+  new_address/6, new_item/5
+]).
+
+%% sumo_doc callbacks
 -export([sumo_schema/0, sumo_wakeup/1, sumo_sleep/1]).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% BEHAVIOUR CALLBACKS
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% sumo_doc callbacks
+%%%=============================================================================
 
 -spec sumo_schema() -> sumo:schema().
 sumo_schema() ->
-  sumo:new_schema(?MODULE,
-    [ sumo:new_field(id,         binary,   [id, not_null])
-    , sumo:new_field(created_at, datetime, [not_null])
-    , sumo:new_field(order_num,  binary,   [not_null])
-    , sumo:new_field(po_date,    datetime, [not_null])
-    , sumo:new_field(ship_to,    address,  [not_null])
-    , sumo:new_field(bill_to,    address,  [not_null])
-    , sumo:new_field(items,      items,    [not_null])
-    , sumo:new_field(currency,   binary,   [not_null])
-    , sumo:new_field(total,      integer,  [not_null])
-    ]).
+  sumo:new_schema(?MODULE, [
+    sumo:new_field(id,         binary,   [id, not_null]),
+    sumo:new_field(created_at, datetime, [not_null]),
+    sumo:new_field(order_num,  binary,   [not_null]),
+    sumo:new_field(po_date,    datetime, [not_null]),
+    sumo:new_field(ship_to,    custom,   [not_null]),
+    sumo:new_field(bill_to,    custom,   [not_null]),
+    sumo:new_field(items,      custom,   [not_null]),
+    sumo:new_field(currency,   binary,   [not_null]),
+    sumo:new_field(total,      integer,  [not_null])
+  ]).
 
 -spec sumo_sleep(purchase_order()) -> sumo:doc().
 sumo_sleep(PO) ->
@@ -81,14 +87,14 @@ sumo_wakeup(Doc) ->
     total       => Total
   }.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% PUBLIC API
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% API
+%%%=============================================================================
 
 -spec new(
   binary(),
   binary(),
-  binary(),
+  calendar:datetime(),
   address(),
   address(),
   items(),
@@ -124,7 +130,7 @@ order_num(#{order_num := Val}) ->
 order_num(PO, Val) ->
   maps:put(order_num, Val, PO).
 
--spec items(purchase_order()) -> item().
+-spec items(purchase_order()) -> items().
 items(#{items := Val}) ->
   Val.
 
@@ -159,9 +165,9 @@ new_item(PartNum, Name, Quantity, UnitPrice, Price) ->
     price         => Price
   }.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% PRIVATE API
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% Internal functions
+%%%=============================================================================
 
 %% @private
 to_int(Data) when is_binary(Data) ->

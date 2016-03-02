@@ -24,37 +24,35 @@
 -behaviour(gen_server).
 -behaviour(sumo_backend).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Exports.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%% Public API.
--export([get_connection/1]).
-
-%%% Exports for sumo_backend
--export([start_link/2]).
+%%% API
+-export([
+  start_link/2,
+  get_connection/1
+]).
 
 %%% Exports for gen_server
--export([ init/1
-        , handle_call/3
-        , handle_cast/2
-        , handle_info/2
-        , terminate/2
-        , code_change/3
-        ]).
+-export([
+  init/1,
+  handle_call/3,
+  handle_cast/2,
+  handle_info/2,
+  terminate/2,
+  code_change/3
+]).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Types.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% Types
+%%%=============================================================================
 
--record(state, {host :: string(),
-                port :: non_neg_integer(),
-                opts :: [term()]}).
+-record(state, {
+  host :: string(),
+  port :: non_neg_integer(),
+  opts :: [term()]}).
 -type state() :: #state{}.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% External API.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% API
+%%%=============================================================================
 
 -spec start_link(atom(), proplists:proplist()) -> {ok, pid()}|term().
 start_link(Name, Options) ->
@@ -64,9 +62,9 @@ start_link(Name, Options) ->
 get_connection(Name) ->
   gen_server:call(Name, get_connection).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% gen_server stuff.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% gen_server callbacks
+%%%=============================================================================
 
 -spec init([term()]) -> {ok, state()}.
 init(Options) ->
@@ -85,9 +83,9 @@ handle_call(get_connection,
   {ok, Conn} = riakc_pb_socket:start_link(Host, Port, Opts),
   {reply, Conn, State}.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Unused Callbacks
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% gen_server unused callbacks
+%%%=============================================================================
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast(_Msg, State) -> {noreply, State}.
@@ -101,20 +99,19 @@ terminate(_Reason, _State) -> ok.
 -spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% gen_server stuff.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% Internal functions
+%%%=============================================================================
 
 -spec riak_opts([term()]) -> [term()].
 riak_opts(Options) ->
   User = proplists:get_value(username, Options),
   Pass = proplists:get_value(password, Options),
   Opts0 = case User /= undefined andalso Pass /= undefined of
-            true -> [{credentials, User, Pass}];
-            _    -> []
-          end,
-  Opts1 = case lists:keyfind(connect_timeout, 1, Options) of
-            {_, V1} -> [{connect_timeout, V1}, {auto_reconnect, true}] ++ Opts0;
-            _       -> [{auto_reconnect, true}] ++ Opts0
-          end,
-  Opts1.
+    true -> [{credentials, User, Pass}];
+    _    -> []
+  end,
+  case lists:keyfind(connect_timeout, 1, Options) of
+    {_, V1} -> [{connect_timeout, V1}, {auto_reconnect, true}] ++ Opts0;
+    _       -> [{auto_reconnect, true}] ++ Opts0
+  end.

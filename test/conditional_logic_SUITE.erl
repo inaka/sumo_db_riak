@@ -17,7 +17,6 @@
     and_conditional/1,
     not_null_conditional/1,
     null_conditional/1,
-    operators/1,
     deeply_nested/1
   ]}
 ]).
@@ -46,7 +45,6 @@ init_per_suite(Config) ->
   Module = sumo_test_people_riak,
   sumo_conditionals_test_helper:init_store(Module),
   timer:sleep(5000),
-  ct:pal("All: ~p", [sumo:find_by(Module, [])]),
   [{module, Module}, {people_with_like, true} | Config].
 
 -spec end_per_suite(config()) -> config().

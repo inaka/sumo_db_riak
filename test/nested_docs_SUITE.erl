@@ -1,25 +1,27 @@
 -module(nested_docs_SUITE).
 
+%% CT
 -export([
-         all/0,
-         init_per_suite/1,
-         end_per_suite/1,
-         init_per_testcase/2
-        ]).
+  all/0,
+  init_per_suite/1,
+  end_per_suite/1,
+  init_per_testcase/2
+]).
 
+%% Test Cases
 -export([
-         find_all/1,
-         find_by/1,
-         update/1,
-         delete_all/1,
-         delete/1
-        ]).
+  find_all/1,
+  find_by/1,
+  update/1,
+  delete_all/1,
+  delete/1
+]).
 
--type config() :: [{atom(), term()}].
+-type config() :: term().
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Common test
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% CT
+%%%=============================================================================
 
 -spec all() -> [atom()].
 all() ->
@@ -27,21 +29,21 @@ all() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(Config) ->
-  application:ensure_all_started(sumo_db),
+  ok = test_utils:start_apps(),
   Config.
 
 init_per_testcase(_, Config) ->
-  init_store(),
+  _ = init_store(),
   Config.
 
 -spec end_per_suite(config()) -> config().
 end_per_suite(Config) ->
-  sumo:delete_all(sumo_test_purchase_order),
+  _ = sumo:delete_all(sumo_test_purchase_order),
   Config.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Exported Tests Functions
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% Test Cases
+%%%=============================================================================
 
 find_all(_Config) ->
   11 = length(sumo:find_all(sumo_test_purchase_order)),
@@ -140,21 +142,21 @@ delete(_Config) ->
   sumo:delete(sumo_test_purchase_order, <<"ID3">>),
   8 = length(sumo:find_all(sumo_test_purchase_order)).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
 %%% Internal functions
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
 
 init_store() ->
   sumo:create_schema(sumo_test_purchase_order),
   sumo:delete_all(sumo_test_purchase_order),
   sync_timeout(0),
 
-  Addr1 = sumo_test_purchase_order:new_address(<<"l1">>, <<"l2">>, <<"city1">>,
-                                               <<"s">>, <<"zip">>, <<"US">>),
-  Addr2 = sumo_test_purchase_order:new_address(<<"l1">>, <<"l2">>, <<"city2">>,
-                                               <<"s">>, <<"zip">>, <<"US">>),
-  Addr3 = sumo_test_purchase_order:new_address(<<"l1">>, <<"l2">>, <<"city3">>,
-                                               <<"s">>, <<"zip">>, <<"US">>),
+  Addr1 = sumo_test_purchase_order:new_address(
+    <<"l1">>, <<"l2">>, <<"city1">>, <<"s">>, <<"zip">>, <<"US">>),
+  Addr2 = sumo_test_purchase_order:new_address(
+    <<"l1">>, <<"l2">>, <<"city2">>, <<"s">>, <<"zip">>, <<"US">>),
+  Addr3 = sumo_test_purchase_order:new_address(
+    <<"l1">>, <<"l2">>, <<"city3">>, <<"s">>, <<"zip">>, <<"US">>),
 
   Item1 = sumo_test_purchase_order:new_item(<<"123">>, <<"p1">>, 1, 100, 100),
   Item2 = sumo_test_purchase_order:new_item(<<"456">>, <<"p2">>, 2, 100, 200),
@@ -162,28 +164,28 @@ init_store() ->
 
   Date = calendar:universal_time(),
 
-  PO1 = sumo_test_purchase_order:new(<<"ID1">>,  <<"O1">>, Date, Addr1, Addr1,
-                                     Items, <<"USD">>, 300),
-  PO2 = sumo_test_purchase_order:new(<<"ID2">>,  <<"O2">>, Date, Addr1, Addr1,
-                                     Items, <<"USD">>, 300),
-  PO3 = sumo_test_purchase_order:new(<<"ID3">>,  <<"O3">>, Date, Addr2, Addr1,
-                                     Items, <<"EUR">>, 300),
-  PO4 = sumo_test_purchase_order:new(<<"ID4">>,  <<"O4">>, Date, Addr3, Addr3,
-                                     Items, <<"ARG">>, 400),
-  PO5 = sumo_test_purchase_order:new(<<"ID5">>,  <<"O5">>, Date, Addr3, Addr3,
-                                     Items, <<"ARG">>, 400),
-  PO6 = sumo_test_purchase_order:new(<<"ID6">>,  <<"O6">>, Date, Addr3, Addr3,
-                                     Items, <<"ARG">>, 400),
-  PO7 = sumo_test_purchase_order:new(<<"ID7">>,  <<"O7">>, Date, Addr3, Addr3,
-                                     Items, <<"ARG">>, 400),
-  PO8 = sumo_test_purchase_order:new(<<"ID8">>,  <<"O8">>, Date, Addr3, Addr3,
-                                     Items, <<"ARG">>, 400),
-  PO9 = sumo_test_purchase_order:new(<<"ID9">>,  <<"O9">>, Date, Addr3, Addr3,
-                                     Items, <<"ARG">>, 400),
-  P10 = sumo_test_purchase_order:new(<<"ID10">>, <<"10">>, Date, Addr3, Addr3,
-                                     Items, <<"ARG">>, 400),
-  P11 = sumo_test_purchase_order:new(<<"ID11">>, <<"11">>, Date, Addr3, Addr3,
-                                     Items, <<"ARG">>, 400),
+  PO1 = sumo_test_purchase_order:new(
+    <<"ID1">>, <<"O1">>, Date, Addr1, Addr1, Items, <<"USD">>, 300),
+  PO2 = sumo_test_purchase_order:new(
+    <<"ID2">>, <<"O2">>, Date, Addr1, Addr1, Items, <<"USD">>, 300),
+  PO3 = sumo_test_purchase_order:new(
+    <<"ID3">>, <<"O3">>, Date, Addr2, Addr1, Items, <<"EUR">>, 300),
+  PO4 = sumo_test_purchase_order:new(
+    <<"ID4">>, <<"O4">>, Date, Addr3, Addr3, Items, <<"ARG">>, 400),
+  PO5 = sumo_test_purchase_order:new(
+    <<"ID5">>, <<"O5">>, Date, Addr3, Addr3, Items, <<"ARG">>, 400),
+  PO6 = sumo_test_purchase_order:new(
+    <<"ID6">>, <<"O6">>, Date, Addr3, Addr3, Items, <<"ARG">>, 400),
+  PO7 = sumo_test_purchase_order:new(
+    <<"ID7">>, <<"O7">>, Date, Addr3, Addr3, Items, <<"ARG">>, 400),
+  PO8 = sumo_test_purchase_order:new(
+    <<"ID8">>, <<"O8">>, Date, Addr3, Addr3, Items, <<"ARG">>, 400),
+  PO9 = sumo_test_purchase_order:new(
+    <<"ID9">>, <<"O9">>, Date, Addr3, Addr3, Items, <<"ARG">>, 400),
+  P10 = sumo_test_purchase_order:new(
+    <<"ID10">>, <<"10">>, Date, Addr3, Addr3, Items, <<"ARG">>, 400),
+  P11 = sumo_test_purchase_order:new(
+    <<"ID11">>, <<"11">>, Date, Addr3, Addr3, Items, <<"ARG">>, 400),
 
   sumo:persist(sumo_test_purchase_order, PO1),
   sumo:persist(sumo_test_purchase_order, PO2),
@@ -197,10 +199,9 @@ init_store() ->
   sumo:persist(sumo_test_purchase_order, P10),
   sumo:persist(sumo_test_purchase_order, P11),
 
-  sync_timeout(11).
+  sync_timeout(11),
+  ok.
 
 sync_timeout(Len) ->
   timer:sleep(5000),
   Len = length(sumo:find_by(sumo_test_purchase_order, [])).
-  %Fun = fun() -> length(sumo:find_by(sumo_test_purchase_order, [])) end,
-  %ktn_task:wait_for(Fun, Len, 500, 10).

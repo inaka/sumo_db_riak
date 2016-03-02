@@ -38,25 +38,34 @@
 
 -include_lib("riakc/include/riakc.hrl").
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Exports.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%% Public API.
--export([init/1]).
--export([create_schema/2]).
--export([persist/2]).
--export([delete_by/3, delete_all/2]).
--export([find_all/2, find_all/5, find_by/3, find_by/5, find_by/6]).
+%% API.
+-export([
+  init/1,
+  create_schema/2,
+  persist/2,
+  delete_by/3,
+  delete_all/2,
+  find_all/2, find_all/5,
+  find_by/3, find_by/5, find_by/6
+]).
 
 %% Utilities
--export([doc_to_rmap/1, map_to_rmap/1, rmap_to_doc/2, rmap_to_map/1]).
--export([fetch_map/4, fetch_docs/5, delete_map/4, update_map/5]).
--export([search/5, build_query/1]).
+-export([
+  doc_to_rmap/1,
+  map_to_rmap/1,
+  rmap_to_doc/2,
+  rmap_to_map/1,
+  fetch_map/4,
+  fetch_docs/5,
+  delete_map/4,
+  update_map/5,
+  search/5,
+  build_query/1
+]).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Types.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% Types
+%%%=============================================================================
 
 %% Riak base parameters
 -type connection() :: pid().
@@ -83,13 +92,11 @@
 }).
 -type state() :: #state{}.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% External API.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% API
+%%%=============================================================================
 
--spec init(
-  term()
-) -> {ok, term()}.
+-spec init(term()) -> {ok, term()}.
 init(Opts) ->
   % The storage backend key in the options specifies the name of the process
   % which creates and initializes the storage backend.
@@ -117,8 +124,7 @@ init(Opts) ->
 -spec persist(
   sumo_internal:doc(), state()
 ) -> sumo_store:result(sumo_internal:doc(), state()).
-persist(Doc,
-        #state{conn = Conn, bucket = Bucket, put_opts = Opts} = State) ->
+persist(Doc, #state{conn = Conn, bucket = Bucket, put_opts = Opts} = State) ->
   {Id, NewDoc} = new_doc(sleep(Doc), State),
   case update_map(Conn, Bucket, Id, doc_to_rmap(NewDoc), Opts) of
     {error, Error} ->
@@ -318,9 +324,9 @@ find_by(_DocName, _Conditions, _SortFields, _Limit, _Offset, State) ->
 create_schema(_Schema, State) ->
   {ok, State}.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Utilities API.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% Utilities
+%%%=============================================================================
 
 -spec doc_to_rmap(sumo_internal:doc()) -> riakc_map:crdt_map().
 doc_to_rmap(Doc) ->
@@ -390,9 +396,9 @@ search(Conn, Index, Query, Limit, Offset) ->
 build_query(Conditions) ->
   build_query1(Conditions, fun escape/1, fun quote/1).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Private API.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% Internal functions
+%%%=============================================================================
 
 %% @private
 transform_conditions(DocName, Conditions) ->
@@ -531,9 +537,10 @@ receive_stream(Ref, F, Acc) ->
   end.
 
 %% @private
-%% @doc Search all docs that match with the given query, but only keys are
-%%      returned.
-%%      IMPORTANT: assumes that default schema 'yokozuna' is being used.
+%% @doc
+%% Search all docs that match with the given query, but only keys are returned.
+%% IMPORTANT: assumes that default schema 'yokozuna' is being used.
+%% @end
 search_keys_by(Conn, Index, Query, Limit, Offset) ->
   case sumo_store_riak:search(Conn, Index, Query, Limit, Offset) of
     {ok, {search_results, Results, _, Total}} ->
@@ -564,9 +571,9 @@ delete_docs(Conn, Bucket, Docs, Opts) ->
     delete_map(Conn, Bucket, K, Opts)
   end, Docs).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Private API - Query Builder.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%=============================================================================
+%%% Query Builder
+%%%=============================================================================
 
 %% @private
 build_query1([], _EscapeFun, _QuoteFun) ->
@@ -602,7 +609,7 @@ build_query1({Name, 'like', Value}, _EscapeFun, _QuoteFun) ->
   Bypass = fun(X) -> X end,
   build_query1({Name, NewVal}, Bypass, Bypass);
 build_query1({Name, 'null'}, _EscapeFun, _QuoteFun) ->
-  %% null: (Field:undefined OR (NOT Field:[* TO *]))
+  %% null: (Field:<<"$nil">> OR (NOT Field:[* TO *]))
   Val = {'or', [{Name, <<"$nil">>}, {'not', {Name, <<"[* TO *]">>}}]},
   Bypass = fun(X) -> X end,
   build_query1(Val, Bypass, Bypass);

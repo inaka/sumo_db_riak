@@ -4,10 +4,10 @@ CONFIG ?= test/test.config
 
 DEPS = lager sumo_db riakc iso8601
 
-dep_lager = git https://github.com/basho/lager.git 3.0.1
-dep_sumo_db = git https://github.com/inaka/sumo_db.git e99d05e
-dep_riakc = git https://github.com/inaka/riak-erlang-client.git 2.1.1-R18
-dep_iso8601 = git https://github.com/zerotao/erlang_iso8601.git 0d14540
+dep_lager   = git https://github.com/basho/lager.git              3.0.1
+dep_sumo_db = git https://github.com/inaka/sumo_db.git            c3402e394edd7484f7b32a7bb2b1175b76ea57a0
+dep_riakc   = git https://github.com/inaka/riak-erlang-client.git 2.1.1-R18
+dep_iso8601 = git https://github.com/zerotao/erlang_iso8601.git   0d14540
 
 TEST_DEPS = katana_test mixer
 
