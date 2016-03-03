@@ -29,7 +29,7 @@ all() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(Config) ->
-  ok = test_utils:start_apps(),
+  {ok, _} = sumo_db_riak:start(),
   Config.
 
 init_per_testcase(_, Config) ->
@@ -39,6 +39,7 @@ init_per_testcase(_, Config) ->
 -spec end_per_suite(config()) -> config().
 end_per_suite(Config) ->
   _ = sumo:delete_all(sumo_test_purchase_order),
+  ok = sumo_db_riak:stop(),
   Config.
 
 %%%=============================================================================

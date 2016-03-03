@@ -2,17 +2,16 @@ PROJECT = sumo_db_riak
 
 CONFIG ?= test/test.config
 
-DEPS = lager sumo_db riakc iso8601
+DEPS = sumo_db riakc iso8601
 
-dep_lager   = git https://github.com/basho/lager.git              3.0.1
-dep_sumo_db = git https://github.com/inaka/sumo_db.git            c3402e394edd7484f7b32a7bb2b1175b76ea57a0
+dep_sumo_db = git https://github.com/inaka/sumo_db.git            a2ee483fa0579ae00efef0157be68ddf97f0e5e4
 dep_riakc   = git https://github.com/inaka/riak-erlang-client.git 2.1.1-R18
 dep_iso8601 = git https://github.com/zerotao/erlang_iso8601.git   0d14540
 
 TEST_DEPS = katana_test mixer
 
 dep_katana_test = git https://github.com/inaka/katana-test.git 0.0.1
-dep_mixer = git git://github.com/inaka/mixer.git 0.1.5
+dep_mixer       = git https://github.com/inaka/mixer.git       0.1.5
 
 BUILD_DEPS = inaka_mk
 
@@ -40,13 +39,3 @@ changelog:
 	github_changelog_generator --token ${TOKEN}
 
 EDOC_OPTS += todo, report_missing_types
-
-# Riak tests
-CT_SUITES_RIAK = nested_docs
-CT_OPTS_RIAK = -vvv -erl_args -config test/riak/riak_test.config
-
-riak_tests: test-build
-	mkdir -p logs/ ; \
-	$(gen_verbose) $(CT_RUN) -suite $(addsuffix _SUITE,$(CT_SUITES_RIAK)) $(CT_OPTS_RIAK)
-	rm -rf test/*beam
-

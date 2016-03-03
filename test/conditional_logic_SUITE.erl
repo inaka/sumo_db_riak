@@ -41,7 +41,7 @@ all() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(Config) ->
-  ok = test_utils:start_apps(),
+  {ok, _} = sumo_db_riak:start(),
   Module = sumo_test_people_riak,
   sumo_conditionals_test_helper:init_store(Module),
   timer:sleep(5000),
@@ -49,4 +49,5 @@ init_per_suite(Config) ->
 
 -spec end_per_suite(config()) -> config().
 end_per_suite(Config) ->
+  ok = sumo_db_riak:stop(),
   Config.

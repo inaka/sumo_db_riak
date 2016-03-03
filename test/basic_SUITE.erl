@@ -42,7 +42,7 @@ all() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(Config) ->
-  ok = test_utils:start_apps(),
+  {ok, _} = sumo_db_riak:start(),
   [{module, sumo_test_people_riak} | Config].
 
 init_per_testcase(_, Config) ->
@@ -53,4 +53,5 @@ init_per_testcase(_, Config) ->
 
 -spec end_per_suite(config()) -> config().
 end_per_suite(Config) ->
+  ok = sumo_db_riak:stop(),
   Config.
