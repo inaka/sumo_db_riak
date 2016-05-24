@@ -1,0 +1,14 @@
+{application, sumo_db_riak, [
+  {description, "SUMO RIAK ADAPTER."},
+  {vsn, "0.0.1"},
+  {id, "sumo_db_riak"},
+  {registered, []},
+  {applications, [
+    kernel,
+    stdlib,
+    sumo_db
+  ]},
+  {modules, []},
+  {mod, {sumo_db_riak, []}},
+  {env, []}
+]}.
