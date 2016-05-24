@@ -85,14 +85,13 @@ Now we can start working with **Riak** from `sumo_db`.
 To start use `sumo_db` with this Riak adapter `sumo_db_riak` is pretty easy, you only has to
 follow these steps:
 
- 1. Add `sumo_db` and `sumo_db_riak` as dependencies in your project.
+ 1. Add `sumo_db_riak` as dependencies in your project.
 
 Using **erlang.mk**:
 
 ```erlang
 DEPS = sumo_db sumo_db_riak
 
-dep_sumo_db      = git https://github.com/inaka/sumo_db.git      0.5.0
 dep_sumo_db_riak = git https://github.com/inaka/sumo_db_riak.git 0.0.1
 ```
 
@@ -100,7 +99,6 @@ Using **Rebar**:
 
 ```erlang
 {deps, [
-  {sumo_db, {git, "https://github.com/inaka/sumo_db.git", {tag, "0.5.0"}}},
   {sumo_db_riak, {git, "https://github.com/inaka/sumo_db_riak.git", {tag, "0.0.1"}}}
 ]}.
 ```
