@@ -23,7 +23,7 @@ all() -> [events_manager_supervisor_running].
 -spec init_per_suite(Config::config()) -> config().
 init_per_suite(Config) ->
   {ok, _} = sumo_db_riak:start(),
-  [{module, sumo_test_people_riak} | Config].
+  [{module, people} | Config].
 
 -spec end_per_suite(Config::config()) -> config().
 end_per_suite(Config) ->

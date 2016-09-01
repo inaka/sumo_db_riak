@@ -43,7 +43,7 @@ all() ->
 -spec init_per_suite(config()) -> config().
 init_per_suite(Config) ->
   {ok, _} = sumo_db_riak:start(),
-  [{module, sumo_test_people_riak} | Config].
+  [{module, people} | Config].
 
 init_per_testcase(_, Config) ->
   {_, Module} = lists:keyfind(module, 1, Config),

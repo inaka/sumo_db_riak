@@ -10,5 +10,6 @@
   ]},
   {modules, []},
   {mod, {sumo_db_riak, []}},
-  {env, []}
+  {env, []},
+  {build_tools, ["rebar3"]}
 ]}.

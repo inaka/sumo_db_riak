@@ -53,7 +53,7 @@
 
 -spec sumo_schema() -> sumo:schema().
 sumo_schema() ->
-  sumo:new_schema(?MODULE, [
+  sumo:new_schema(purchase, [
     sumo:new_field(id,         binary,   [id, not_null]),
     sumo:new_field(created_at, datetime, [not_null]),
     sumo:new_field(order_num,  binary,   [not_null]),

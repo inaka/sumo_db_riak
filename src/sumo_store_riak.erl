@@ -417,39 +417,37 @@ validate_date({FieldType, _, FieldValue}) ->
 
 %% @private
 sleep(Doc) ->
-  sumo_utils:doc_transform(fun sleep_fun/1, Doc).
-
+  sumo_utils:doc_transform(fun sleep_fun/4, Doc).
 %% @private
-sleep_fun({_, FieldName, undefined}) when FieldName /= id ->
+sleep_fun(_, FieldName, undefined, _) when FieldName /= id ->
   <<"$nil">>;
-sleep_fun({FieldType, _, FieldValue})
+sleep_fun(FieldType, _, FieldValue, _)
     when FieldType =:= datetime; FieldType =:= date ->
   case {FieldType, sumo_utils:is_datetime(FieldValue)} of
     {datetime, true} -> iso8601:format(FieldValue);
     {date, true}     -> iso8601:format({FieldValue, {0, 0, 0}});
     _                -> FieldValue
   end;
-sleep_fun({_, _, FieldValue}) ->
+sleep_fun(_, _, FieldValue, _) ->
   FieldValue.
 
 %% @private
 wakeup(Doc) ->
-  sumo_utils:doc_transform(fun wakeup_fun/1, Doc).
-
-wakeup_fun({_, _, <<"$nil">>}) ->
+  sumo_utils:doc_transform(fun wakeup_fun/4, Doc).
+wakeup_fun(_, _, <<"$nil">>, _) ->
   undefined;
-wakeup_fun({FieldType, _, FieldValue})
+wakeup_fun(FieldType, _, FieldValue, _)
     when FieldType =:= datetime; FieldType =:= date ->
   case {FieldType, iso8601:is_datetime(FieldValue)} of
     {datetime, true} -> iso8601:parse(FieldValue);
     {date, true}     -> {Date, _} = iso8601:parse(FieldValue), Date;
     _                -> FieldValue
   end;
-wakeup_fun({integer, _, FieldValue}) when is_binary(FieldValue) ->
+wakeup_fun(integer, _, FieldValue, _) when is_binary(FieldValue) ->
   binary_to_integer(FieldValue);
-wakeup_fun({float, _, FieldValue}) when is_binary(FieldValue) ->
+wakeup_fun(float, _, FieldValue, _) when is_binary(FieldValue) ->
   binary_to_float(FieldValue);
-wakeup_fun({_, _, FieldValue}) ->
+wakeup_fun(_, _, FieldValue, _) ->
   FieldValue.
 
 %% @private

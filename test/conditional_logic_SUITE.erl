@@ -42,7 +42,7 @@ all() ->
 -spec init_per_suite(config()) -> config().
 init_per_suite(Config) ->
   {ok, _} = sumo_db_riak:start(),
-  Module = sumo_test_people_riak,
+  Module = people,
   sumo_conditionals_test_helper:init_store(Module),
   timer:sleep(5000),
   [{module, Module}, {people_with_like, true} | Config].
