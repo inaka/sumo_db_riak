@@ -14,3 +14,4 @@ sumo_db_riak.d
 _build
 doc
 log
+rebar.lock
