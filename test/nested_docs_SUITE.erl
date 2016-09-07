@@ -32,6 +32,7 @@ init_per_suite(Config) ->
   {ok, _} = sumo_db_riak:start(),
   Config.
 
+-spec init_per_testcase(atom(), config()) -> config().
 init_per_testcase(_, Config) ->
   _ = init_store(),
   Config.
@@ -46,6 +47,7 @@ end_per_suite(Config) ->
 %%% Test Cases
 %%%=============================================================================
 
+-spec find_all(config()) -> ok.
 find_all(_Config) ->
   11 = length(sumo:find_all(purchase)),
   All1 = sumo:find_all(purchase, [], 2, 0),
@@ -54,6 +56,7 @@ find_all(_Config) ->
   9 = length(All2),
   ok.
 
+-spec find_by(config()) -> ok.
 find_by(_Config) ->
   Results1 = sumo:find_by(purchase, [{currency, <<"USD">>}]),
   2 = length(Results1),
@@ -114,6 +117,7 @@ find_by(_Config) ->
 
   ok.
 
+-spec update(config()) -> ok.
 update(_Config) ->
   PO1 = sumo:find(purchase, <<"ID1">>),
 
@@ -129,10 +133,13 @@ update(_Config) ->
 
   ok.
 
+-spec delete_all(config()) -> ok.
 delete_all(_Config) ->
   sumo:delete_all(purchase),
-  [] = sumo:find_all(purchase).
+  [] = sumo:find_all(purchase),
+  ok.
 
+-spec delete(config()) -> ok.
 delete(_Config) ->
   %% delete_by
   2  = sumo:delete_by(purchase, [{currency, <<"USD">>}]),
@@ -141,7 +148,8 @@ delete(_Config) ->
 
   %% delete
   sumo:delete(purchase, <<"ID3">>),
-  8 = length(sumo:find_all(purchase)).
+  8 = length(sumo:find_all(purchase)),
+  ok.
 
 %%%=============================================================================
 %%% Internal functions
@@ -188,17 +196,9 @@ init_store() ->
   P11 = sumo_test_purchase_order:new(
     <<"ID11">>, <<"11">>, Date, Addr3, Addr3, Items, <<"ARG">>, 400),
 
-  sumo:persist(purchase, PO1),
-  sumo:persist(purchase, PO2),
-  sumo:persist(purchase, PO3),
-  sumo:persist(purchase, PO4),
-  sumo:persist(purchase, PO5),
-  sumo:persist(purchase, PO6),
-  sumo:persist(purchase, PO7),
-  sumo:persist(purchase, PO8),
-  sumo:persist(purchase, PO9),
-  sumo:persist(purchase, P10),
-  sumo:persist(purchase, P11),
+  lists:foreach(fun(Doc) ->
+    sumo:persist(purchase, Doc)
+  end, [PO1, PO2, PO3, PO4, PO5, PO6, PO7, PO8, PO9, P10, P11]),
 
   sync_timeout(11),
   ok.
