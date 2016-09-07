@@ -84,7 +84,7 @@
 %% <a href="http://docs.basho.com/riak/latest/dev/using/basics">Reference</a>.
 -record(state, {
   conn     :: connection(),
-  bucket   :: bucket(),
+  bucket   :: binary() | {binary(), binary()},
   index    :: index(),
   get_opts :: get_options(),
   put_opts :: put_options(),
@@ -183,7 +183,7 @@ delete_all(_DocName,
   Del = fun(Kst, Acc) ->
     lists:foreach(fun(K) -> delete_map(Conn, Bucket, K, Opts) end, Kst),
     Acc + length(Kst)
-end,
+  end,
   case stream_keys(Conn, Bucket, Del, 0) of
     {ok, Count} -> {ok, Count, State};
     {_, Count}  -> {error, Count, State}
@@ -285,6 +285,13 @@ find_by_query(DocName, Conditions, Limit, Offset, State) ->
       {error, Error, State}
   end.
 
+%% @doc
+%% This function is used when none pagination parameter is given.
+%% By default the search operation returns a specific set of results,
+%% it handles a limit internally, so the total amount of docs may be
+%% not returned. For this reason, this operation gets the first result
+%% set, and then it fetches the rest fo them.
+%% @end
 %% @private
 find_by_query_get_keys(Conn, Index, Query) ->
   InitialResults = case search_keys_by(Conn, Index, Query, 0, 0) of
@@ -417,39 +424,57 @@ validate_date({FieldType, _, FieldValue}) ->
 
 %% @private
 sleep(Doc) ->
-  sumo_utils:doc_transform(fun sleep_fun/1, Doc).
-
+  sumo_utils:doc_transform(fun sleep_fun/4, Doc).
 %% @private
-sleep_fun({_, FieldName, undefined}) when FieldName /= id ->
+sleep_fun(_, FieldName, undefined, _) when FieldName /= id ->
   <<"$nil">>;
-sleep_fun({FieldType, _, FieldValue})
+sleep_fun(FieldType, _, FieldValue, _)
     when FieldType =:= datetime; FieldType =:= date ->
   case {FieldType, sumo_utils:is_datetime(FieldValue)} of
     {datetime, true} -> iso8601:format(FieldValue);
     {date, true}     -> iso8601:format({FieldValue, {0, 0, 0}});
     _                -> FieldValue
   end;
-sleep_fun({_, _, FieldValue}) ->
+sleep_fun(custom, _, FieldValue, FieldAttrs) ->
+  Type = sumo_utils:keyfind(type, FieldAttrs, custom),
+  sleep_custom(FieldValue, Type);
+sleep_fun(_, _, FieldValue, _) ->
+  FieldValue.
+
+%% @private
+sleep_custom(FieldValue, term) ->
+  base64:encode(term_to_binary(FieldValue));
+sleep_custom(FieldValue, _) ->
   FieldValue.
 
 %% @private
 wakeup(Doc) ->
-  sumo_utils:doc_transform(fun wakeup_fun/1, Doc).
-
-wakeup_fun({_, _, <<"$nil">>}) ->
+  sumo_utils:doc_transform(fun wakeup_fun/4, Doc).
+wakeup_fun(_, _, <<"$nil">>, _) ->
   undefined;
-wakeup_fun({FieldType, _, FieldValue})
+wakeup_fun(FieldType, _, FieldValue, _)
     when FieldType =:= datetime; FieldType =:= date ->
   case {FieldType, iso8601:is_datetime(FieldValue)} of
     {datetime, true} -> iso8601:parse(FieldValue);
     {date, true}     -> {Date, _} = iso8601:parse(FieldValue), Date;
     _                -> FieldValue
   end;
-wakeup_fun({integer, _, FieldValue}) when is_binary(FieldValue) ->
+wakeup_fun(integer, _, FieldValue, _) when is_binary(FieldValue) ->
   binary_to_integer(FieldValue);
-wakeup_fun({float, _, FieldValue}) when is_binary(FieldValue) ->
+wakeup_fun(float, _, FieldValue, _) when is_binary(FieldValue) ->
   binary_to_float(FieldValue);
-wakeup_fun({_, _, FieldValue}) ->
+wakeup_fun(boolean, _, FieldValue, _) when is_binary(FieldValue) ->
+  binary_to_atom(FieldValue, utf8);
+wakeup_fun(custom, _, FieldValue, FieldAttrs) ->
+  Type = sumo_utils:keyfind(type, FieldAttrs, custom),
+  wakeup_custom(FieldValue, Type);
+wakeup_fun(_, _, FieldValue, _) ->
+  FieldValue.
+
+%% @private
+wakeup_custom(FieldValue, term) ->
+  binary_to_term(base64:decode(FieldValue));
+wakeup_custom(FieldValue, _) ->
   FieldValue.
 
 %% @private

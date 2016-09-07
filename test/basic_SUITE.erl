@@ -43,11 +43,12 @@ all() ->
 -spec init_per_suite(config()) -> config().
 init_per_suite(Config) ->
   {ok, _} = sumo_db_riak:start(),
-  [{module, sumo_test_people_riak} | Config].
+  [{name, people} | Config].
 
+-spec init_per_testcase(atom(), config()) -> config().
 init_per_testcase(_, Config) ->
-  {_, Module} = lists:keyfind(module, 1, Config),
-  sumo_basic_test_helper:init_store(Module),
+  {_, Name} = lists:keyfind(name, 1, Config),
+  sumo_basic_test_helper:init_store(Name),
   timer:sleep(5000),
   Config.
 

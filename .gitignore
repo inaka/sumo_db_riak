@@ -11,3 +11,7 @@ rel/example_project
 .erlang.mk/
 logs/
 sumo_db_riak.d
+_build
+doc
+log
+rebar.lock

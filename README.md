@@ -87,19 +87,9 @@ follow these steps:
 
  1. Add `sumo_db_riak` as dependencies in your project.
 
-Using **erlang.mk**:
-
-```erlang
-DEPS = sumo_db sumo_db_riak
-
-dep_sumo_db_riak = git https://github.com/inaka/sumo_db_riak.git 0.0.1
-```
-
-Using **Rebar**:
-
 ```erlang
 {deps, [
-  {sumo_db_riak, {git, "https://github.com/inaka/sumo_db_riak.git", {tag, "0.0.1"}}}
+  {sumo_db_riak, "0.0.1"}
 ]}.
 ```
 
@@ -110,30 +100,14 @@ Using **Rebar**:
 
  4. Now you can run your app and start using `sumo` from there.
 
-### Running sumo from Erlang console
+### Running sumo from an Erlang console
 
-Start the Erlang console, adding the path to your beams and config file
+    $ rebar3 shell --config test/test.config
 
-    $ erl -pa ebin deps/*/ebin -config tests/test.config
-
-Within the console:
+Now you're ready to play with `sumo` and **Riak**:
 
 ```erlang
-> sumo_db_riak:start().
-08:30:22.591 [info] Application lager started on node nonode@nohost
-08:30:22.598 [info] Application crypto started on node nonode@nohost
-08:30:22.601 [info] Creating wpool ETS table
-08:30:22.601 [info] Application worker_pool started on node nonode@nohost
-08:30:22.602 [info] Application quickrand started on node nonode@nohost
-08:30:22.603 [info] Application uuid started on node nonode@nohost
-08:30:22.635 [info] Application sumo_db started on node nonode@nohost
-08:30:22.635 [info] Application sumo_db_riak started on node nonode@nohost
-{ok,[sasl,syntax_tools,compiler,goldrush,lager,crypto,
-     worker_pool,quickrand,uuid,sumo_db,sumo_db_riak]}
-
-% from here you can start using sumo
-
-> sumo:find_all(sumo_test_people_riak).
+> sumo:find_all(people).
 []
 ```
 

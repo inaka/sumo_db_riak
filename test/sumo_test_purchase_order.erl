@@ -53,25 +53,25 @@
 
 -spec sumo_schema() -> sumo:schema().
 sumo_schema() ->
-  sumo:new_schema(?MODULE, [
-    sumo:new_field(id,         binary,   [id, not_null]),
+  sumo:new_schema(purchases, [
+    sumo:new_field(id,         string,   [id, not_null]),
     sumo:new_field(created_at, datetime, [not_null]),
-    sumo:new_field(order_num,  binary,   [not_null]),
+    sumo:new_field(order_num,  string,   [not_null]),
     sumo:new_field(po_date,    datetime, [not_null]),
-    sumo:new_field(ship_to,    custom,   [not_null]),
-    sumo:new_field(bill_to,    custom,   [not_null]),
-    sumo:new_field(items,      custom,   [not_null]),
-    sumo:new_field(currency,   binary,   [not_null]),
+    sumo:new_field(ship_to,    custom,   [{type, object}]),
+    sumo:new_field(bill_to,    custom,   [{type, object}]),
+    sumo:new_field(items,      custom,   [{type, object}]),
+    sumo:new_field(currency,   string,   [not_null]),
     sumo:new_field(total,      integer,  [not_null])
   ]).
 
--spec sumo_sleep(purchase_order()) -> sumo:doc().
+-spec sumo_sleep(purchase_order()) -> sumo:model().
 sumo_sleep(PO) ->
   I = items(PO),
   Items = maps:from_list(lists:zip(lists:seq(1, length(I)), I)),
   items(PO, Items).
 
--spec sumo_wakeup(sumo:doc()) -> purchase_order().
+-spec sumo_wakeup(sumo:model()) -> purchase_order().
 sumo_wakeup(Doc) ->
   Items = wakeup_items(maps:get(items, Doc, #{})),
   Total = to_int(maps:get(total, Doc)),
@@ -146,6 +146,14 @@ currency(#{currency := Val}) ->
 currency(PO, Val) ->
   maps:put(currency, Val, PO).
 
+-spec new_address(
+  binary(),
+  binary(),
+  binary(),
+  binary(),
+  binary(),
+  binary()
+) -> address().
 new_address(Line1, Line2, City, State, ZipCode, Country) ->
   #{
     line1    => Line1,
@@ -156,6 +164,13 @@ new_address(Line1, Line2, City, State, ZipCode, Country) ->
     country  => Country
   }.
 
+-spec new_item(
+  binary(),
+  binary(),
+  pos_integer(),
+  pos_integer(),
+  pos_integer()
+) -> item().
 new_item(PartNum, Name, Quantity, UnitPrice, Price) ->
   #{
     part_num      => PartNum,
