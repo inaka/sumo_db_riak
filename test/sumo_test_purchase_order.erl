@@ -53,7 +53,7 @@
 
 -spec sumo_schema() -> sumo:schema().
 sumo_schema() ->
-  sumo:new_schema(purchase, [
+  sumo:new_schema(purchases, [
     sumo:new_field(id,         string,   [id, not_null]),
     sumo:new_field(created_at, datetime, [not_null]),
     sumo:new_field(order_num,  string,   [not_null]),

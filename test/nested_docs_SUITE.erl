@@ -39,7 +39,7 @@ init_per_testcase(_, Config) ->
 
 -spec end_per_suite(config()) -> config().
 end_per_suite(Config) ->
-  _ = sumo:delete_all(purchase),
+  _ = sumo:delete_all(purchases),
   ok = sumo_db_riak:stop(),
   Config.
 
@@ -49,16 +49,16 @@ end_per_suite(Config) ->
 
 -spec find_all(config()) -> ok.
 find_all(_Config) ->
-  11 = length(sumo:find_all(purchase)),
-  All1 = sumo:find_all(purchase, [], 2, 0),
+  11 = length(sumo:find_all(purchases)),
+  All1 = sumo:find_all(purchases, [], 2, 0),
   2 = length(All1),
-  All2 = sumo:find_all(purchase, [], 10, 2),
+  All2 = sumo:find_all(purchases, [], 10, 2),
   9 = length(All2),
   ok.
 
 -spec find_by(config()) -> ok.
 find_by(_Config) ->
-  Results1 = sumo:find_by(purchase, [{currency, <<"USD">>}]),
+  Results1 = sumo:find_by(purchases, [{currency, <<"USD">>}]),
   2 = length(Results1),
 
   [ #{id        := <<"ID1">>,
@@ -77,7 +77,7 @@ find_by(_Config) ->
       total     := 300}
   ] = Results1,
 
-  Results2 = sumo:find_by(purchase, [{currency, <<"EUR">>}]),
+  Results2 = sumo:find_by(purchases, [{currency, <<"EUR">>}]),
   1 = length(Results2),
 
   [ #{id        := <<"ID3">>,
@@ -89,7 +89,7 @@ find_by(_Config) ->
       total     := 300}
   ] = Results2,
 
-  PO1 = sumo:find(purchase, <<"ID1">>),
+  PO1 = sumo:find(purchases, <<"ID1">>),
   #{id        := <<"ID1">>,
     currency  := <<"USD">>,
     items     := [#{part_num := <<"123">>}, #{part_num := <<"456">>}],
@@ -98,20 +98,20 @@ find_by(_Config) ->
     bill_to   := #{city := <<"city1">>, country := <<"US">>},
     total     := 300} = PO1,
 
-  notfound = sumo:find(purchase, <<"ID123">>),
+  notfound = sumo:find(purchases, <<"ID123">>),
 
   Results3 = sumo:find_by(
-    purchase, [{'ship_to.city', <<"city2">>}]),
+    purchases, [{'ship_to.city', <<"city2">>}]),
   1 = length(Results3),
   Results2 = Results3,
 
   Results4 = sumo:find_by(
-    purchase,
+    purchases,
     [{'ship_to.city', <<"city2">>}, {currency, <<"USD">>}]),
   0 = length(Results4),
 
   Results5 = sumo:find_by(
-    purchase,
+    purchases,
     [{'ship_to.city', <<"city1">>}, {currency, <<"USD">>}]),
   2 = length(Results5),
 
@@ -119,36 +119,36 @@ find_by(_Config) ->
 
 -spec update(config()) -> ok.
 update(_Config) ->
-  PO1 = sumo:find(purchase, <<"ID1">>),
+  PO1 = sumo:find(purchases, <<"ID1">>),
 
   PO1x = sumo_test_purchase_order:order_num(PO1, <<"0001">>),
-  sumo:persist(purchase, PO1x),
+  sumo:persist(purchases, PO1x),
 
-  PO1x = sumo:find(purchase, <<"ID1">>),
+  PO1x = sumo:find(purchases, <<"ID1">>),
 
   PO1y = sumo_test_purchase_order:order_num(PO1x, <<"00011">>),
-  sumo:persist(purchase, PO1y),
+  sumo:persist(purchases, PO1y),
 
-  PO1y = sumo:find(purchase, <<"ID1">>),
+  PO1y = sumo:find(purchases, <<"ID1">>),
 
   ok.
 
 -spec delete_all(config()) -> ok.
 delete_all(_Config) ->
-  sumo:delete_all(purchase),
-  [] = sumo:find_all(purchase),
+  sumo:delete_all(purchases),
+  [] = sumo:find_all(purchases),
   ok.
 
 -spec delete(config()) -> ok.
 delete(_Config) ->
   %% delete_by
-  2  = sumo:delete_by(purchase, [{currency, <<"USD">>}]),
+  2  = sumo:delete_by(purchases, [{currency, <<"USD">>}]),
   sync_timeout(9),
-  [] = sumo:find_by(purchase, [{currency, <<"USD">>}]),
+  [] = sumo:find_by(purchases, [{currency, <<"USD">>}]),
 
   %% delete
-  sumo:delete(purchase, <<"ID3">>),
-  8 = length(sumo:find_all(purchase)),
+  sumo:delete(purchases, <<"ID3">>),
+  8 = length(sumo:find_all(purchases)),
   ok.
 
 %%%=============================================================================
@@ -156,8 +156,8 @@ delete(_Config) ->
 %%%=============================================================================
 
 init_store() ->
-  sumo:create_schema(purchase),
-  sumo:delete_all(purchase),
+  sumo:create_schema(purchases),
+  sumo:delete_all(purchases),
   sync_timeout(0),
 
   Addr1 = sumo_test_purchase_order:new_address(
@@ -197,7 +197,7 @@ init_store() ->
     <<"ID11">>, <<"11">>, Date, Addr3, Addr3, Items, <<"ARG">>, 400),
 
   lists:foreach(fun(Doc) ->
-    sumo:persist(purchase, Doc)
+    sumo:persist(purchases, Doc)
   end, [PO1, PO2, PO3, PO4, PO5, PO6, PO7, PO8, PO9, P10, P11]),
 
   sync_timeout(11),
@@ -205,4 +205,4 @@ init_store() ->
 
 sync_timeout(Len) ->
   timer:sleep(5000),
-  Len = length(sumo:find_by(purchase, [])).
+  Len = length(sumo:find_by(purchases, [])).
