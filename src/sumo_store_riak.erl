@@ -54,7 +54,7 @@
   doc_to_rmap/1,
   map_to_rmap/1,
   rmap_to_doc/2,
-  rmap_to_map/1,
+  rmap_to_map/2,
   fetch_map/4,
   fetch_docs/5,
   delete_map/4,
@@ -82,6 +82,7 @@
 %% put_opts: Riak write options parameters.
 %% del_opts: Riak delete options parameters.
 %% <a href="http://docs.basho.com/riak/latest/dev/using/basics">Reference</a>.
+%% @end
 -record(state, {
   conn     :: connection(),
   bucket   :: binary() | {binary(), binary()},
@@ -90,6 +91,7 @@
   put_opts :: put_options(),
   del_opts :: delete_options()
 }).
+
 -type state() :: #state{}.
 
 %%%=============================================================================
@@ -348,14 +350,14 @@ map_to_rmap(Map) ->
   sumo:schema_name(), riakc_map:crdt_map()
 ) -> sumo_internal:doc().
 rmap_to_doc(DocName, RMap) ->
-  wakeup(sumo_internal:new_doc(DocName, rmap_to_map(RMap))).
+  wakeup(sumo_internal:new_doc(DocName, rmap_to_map(DocName, RMap))).
 
--spec rmap_to_map(riakc_map:crdt_map()) -> map().
-rmap_to_map(RMap) ->
+-spec rmap_to_map(sumo:schema_name(), riakc_map:crdt_map()) -> map().
+rmap_to_map(DocName, RMap) ->
   lists:foldl(fun
     ({{K, map}, V}, Acc) ->
-      maps:put(
-        sumo_utils:to_atom(K), rmap_to_map({map, V, [], [], undefined}), Acc);
+      NewV = rmap_to_map(DocName, {map, V, [], [], undefined}),
+      maps:put(sumo_utils:to_atom(K), NewV, Acc);
     ({{K, _}, V}, Acc) ->
       maps:put(sumo_utils:to_atom(K), V, Acc)
   end, #{}, riakc_map:value(RMap)).
@@ -442,10 +444,11 @@ sleep_fun(_, _, FieldValue, _) ->
   FieldValue.
 
 %% @private
-sleep_custom(FieldValue, term) ->
-  base64:encode(term_to_binary(FieldValue));
-sleep_custom(FieldValue, _) ->
-  FieldValue.
+sleep_custom(FieldValue, FieldType) ->
+  case lists:member(FieldType, [term, tuple, map, list]) of
+    true -> base64:encode(term_to_binary(FieldValue));
+    _    -> FieldValue
+  end.
 
 %% @private
 wakeup(Doc) ->
@@ -472,10 +475,11 @@ wakeup_fun(_, _, FieldValue, _) ->
   FieldValue.
 
 %% @private
-wakeup_custom(FieldValue, term) ->
-  binary_to_term(base64:decode(FieldValue));
-wakeup_custom(FieldValue, _) ->
-  FieldValue.
+wakeup_custom(FieldValue, FieldType) ->
+  case lists:member(FieldType, [term, tuple, map, list]) of
+    true -> binary_to_term(base64:decode(FieldValue));
+    _    -> FieldValue
+  end.
 
 %% @private
 doc_id(Doc) ->
