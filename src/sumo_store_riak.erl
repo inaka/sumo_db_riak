@@ -43,6 +43,7 @@
   init/1,
   create_schema/2,
   persist/2,
+  fetch/3,
   delete_by/3,
   delete_all/2,
   find_all/2, find_all/5,
@@ -104,12 +105,12 @@ init(Opts) ->
   % which creates and initializes the storage backend.
   Backend = proplists:get_value(storage_backend, Opts),
   Conn = sumo_backend_riak:get_connection(Backend),
-  BucketType = iolist_to_binary(
-    proplists:get_value(bucket_type, Opts, <<"maps">>)),
-  Bucket = iolist_to_binary(
-    proplists:get_value(bucket, Opts, <<"sumo">>)),
-  Index = iolist_to_binary(
-    proplists:get_value(index, Opts, <<"sumo_index">>)),
+  BucketType = sumo_utils:to_bin(
+    sumo_utils:keyfind(bucket_type, Opts, <<"maps">>)),
+  Bucket = sumo_utils:to_bin(
+    sumo_utils:keyfind(bucket, Opts, <<"sumo">>)),
+  Index = sumo_utils:to_bin(
+    sumo_utils:keyfind(index, Opts, <<"sumo_index">>)),
   GetOpts = proplists:get_value(get_options, Opts, []),
   PutOpts = proplists:get_value(put_options, Opts, []),
   DelOpts = proplists:get_value(delete_options, Opts, []),
@@ -123,9 +124,10 @@ init(Opts) ->
   },
   {ok, State}.
 
--spec persist(
-  sumo_internal:doc(), state()
-) -> sumo_store:result(sumo_internal:doc(), state()).
+-spec persist(Doc, State) -> Response when
+  Doc      :: sumo_internal:doc(),
+  State    :: state(),
+  Response :: sumo_store:result(sumo_internal:doc(), state()).
 persist(Doc, #state{conn = Conn, bucket = Bucket, put_opts = Opts} = State) ->
   {Id, NewDoc} = new_doc(sleep(Doc), State),
   case update_map(Conn, Bucket, Id, doc_to_rmap(NewDoc), Opts) of
@@ -135,14 +137,29 @@ persist(Doc, #state{conn = Conn, bucket = Bucket, put_opts = Opts} = State) ->
       {ok, wakeup(NewDoc), State}
   end.
 
--spec delete_by(
-  sumo:schema_name(), sumo:conditions(), state()
-) -> sumo_store:result(sumo_store:affected_rows(), state()).
-delete_by(DocName, Conditions,
-          #state{conn = Conn,
-                 bucket = Bucket,
-                 index = Index,
-                 del_opts = Opts} = State) when is_list(Conditions) ->
+-spec fetch(DocName, Id, State) -> Response when
+  DocName  :: sumo:schema_name(),
+  Id       :: sumo:field_value(),
+  State    :: state(),
+  Response :: sumo_store:result(sumo_internal:doc(), state()).
+fetch(DocName, Id, State) ->
+  #state{conn = Conn, bucket = Bucket, get_opts = Opts} = State,
+  case fetch_map(Conn, Bucket, sumo_utils:to_bin(Id), Opts) of
+    {ok, RMap} ->
+      {ok, rmap_to_doc(DocName, RMap), State};
+    {error, {notfound, _}} ->
+      {error, notfound, State};
+    {error, Error} ->
+      {error, Error, State}
+  end.
+
+-spec delete_by(DocName, Conditions, State) -> Response when
+  DocName    :: sumo:schema_name(),
+  Conditions :: sumo:conditions(),
+  State      :: state(),
+  Response   :: sumo_store:result(sumo_store:affected_rows(), state()).
+delete_by(DocName, Conditions, State) when is_list(Conditions) ->
+  #state{conn = Conn, bucket = Bucket, index = Index, del_opts = Opts} = State,
   IdField = sumo_internal:id_field_name(DocName),
   case lists:keyfind(IdField, 1, Conditions) of
     {_K, Key} ->
@@ -162,11 +179,8 @@ delete_by(DocName, Conditions,
           {error, Error, State}
       end
   end;
-delete_by(DocName, Conditions,
-          #state{conn = Conn,
-                 bucket = Bucket,
-                 index = Index,
-                 del_opts = Opts} = State) ->
+delete_by(DocName, Conditions, State) ->
+  #state{conn = Conn, bucket = Bucket, index = Index, del_opts = Opts} = State,
   TranslatedConditions = transform_conditions(DocName, Conditions),
   Query = build_query(TranslatedConditions),
   case search_docs_by(DocName, Conn, Index, Query, 0, 0) of
@@ -177,11 +191,12 @@ delete_by(DocName, Conditions,
       {error, Error, State}
   end.
 
--spec delete_all(
-  sumo:schema_name(), state()
-) -> sumo_store:result(sumo_store:affected_rows(), state()).
-delete_all(_DocName,
-           #state{conn = Conn, bucket = Bucket, del_opts = Opts} = State) ->
+-spec delete_all(DocName, State) -> Response when
+  DocName  :: sumo:schema_name(),
+  State    :: state(),
+  Response :: sumo_store:result(sumo_store:affected_rows(), state()).
+delete_all(_DocName, State) ->
+  #state{conn = Conn, bucket = Bucket, del_opts = Opts} = State,
   Del = fun(Kst, Acc) ->
     lists:foreach(fun(K) -> delete_map(Conn, Bucket, K, Opts) end, Kst),
     Acc + length(Kst)
@@ -191,11 +206,12 @@ delete_all(_DocName,
     {_, Count}  -> {error, Count, State}
   end.
 
--spec find_all(
-  sumo:schema_name(), state()
-) -> sumo_store:result([sumo_internal:doc()], state()).
-find_all(DocName,
-         #state{conn = Conn, bucket = Bucket, get_opts = Opts} = State) ->
+-spec find_all(DocName, State) -> Response when
+  DocName  :: sumo:schema_name(),
+  State    :: state(),
+  Response :: sumo_store:result([sumo_internal:doc()], state()).
+find_all(DocName, State) ->
+  #state{conn = Conn, bucket = Bucket, get_opts = Opts} = State,
   Get = fun(Kst, Acc) ->
     fetch_docs(DocName, Conn, Bucket, Kst, Opts) ++ Acc
   end,
@@ -204,13 +220,13 @@ find_all(DocName,
     {_, Docs}  -> {error, Docs, State}
   end.
 
--spec find_all(
-  sumo:schema_name(),
-  term(),
-  non_neg_integer(),
-  non_neg_integer(),
-  state()
-) -> sumo_store:result([sumo_internal:doc()], state()).
+-spec find_all(DocName, SortFields, Limit, Offset, State) -> Response when
+  DocName    :: sumo:schema_name(),
+  SortFields :: term(),
+  Limit      :: non_neg_integer(),
+  Offset     :: non_neg_integer(),
+  State      :: state(),
+  Response   :: sumo_store:result([sumo_internal:doc()], state()).
 find_all(DocName, _SortFields, Limit, Offset, State) ->
   %% @todo implement search with sort parameters.
   find_by(DocName, [], Limit, Offset, State).
@@ -222,46 +238,22 @@ find_all(DocName, _SortFields, Limit, Offset, State) ->
 %% query exist, and then obtain results for all of them.
 %% This is done to overcome Solr's default pagination value of 10.
 %% @end
--spec find_by(sumo:schema_name(), sumo:conditions(), state()) ->
-  sumo_store:result([sumo_internal:doc()], state()).
+-spec find_by(DocName, Conditions, State) -> Response when
+  DocName    :: sumo:schema_name(),
+  Conditions :: sumo:conditions(),
+  State      :: state(),
+  Response   :: sumo_store:result([sumo_internal:doc()], state()).
 find_by(DocName, Conditions, State) ->
   find_by(DocName, Conditions, undefined, undefined, State).
 
--spec find_by(
-  sumo:schema_name(),
-  sumo:conditions(),
-  undefined | non_neg_integer(),
-  undefined | non_neg_integer(),
-  state()
-) -> sumo_store:result([sumo_internal:doc()], state()).
-find_by(DocName, Conditions, Limit, Offset, State) when is_list(Conditions) ->
-  IdField = sumo_internal:id_field_name(DocName),
-  %% If **ONLY** the key field is present in the conditions, we are looking
-  %% for a particular document. Otherwise, it is a general query.
-  case Conditions of
-    [{IdField, Value}] ->
-      find_by_id_field(DocName, Value, State);
-    _ ->
-      find_by_query(DocName, Conditions, Limit, Offset, State)
-  end;
-find_by(DocName, Conditions, Limit, Offset, State) ->
-  find_by_query(DocName, Conditions, Limit, Offset, State).
-
-%% @private
-find_by_id_field(DocName, Key, State) ->
-  #state{conn = Conn, bucket = Bucket, get_opts = Opts} = State,
-  case fetch_map(Conn, Bucket, sumo_utils:to_bin(Key), Opts) of
-    {ok, RMap} ->
-      Val = rmap_to_doc(DocName, RMap),
-      {ok, [Val], State};
-    {error, {notfound, _}} ->
-      {ok, [], State};
-    {error, Error} ->
-      {error, Error, State}
-  end.
-
-%% @private
-find_by_query(DocName, Conditions, undefined, undefined, State) ->
+-spec find_by(DocName, Conditions, Limit, Offset, State) -> Response when
+  DocName    :: sumo:schema_name(),
+  Conditions :: sumo:conditions(),
+  Limit      :: non_neg_integer() | undefined,
+  Offset     :: non_neg_integer() | undefined,
+  State      :: state(),
+  Response   :: sumo_store:result([sumo_internal:doc()], state()).
+find_by(DocName, Conditions, undefined, undefined, State) ->
   %% First get all keys matching the query, and then obtain documents for those
   %% keys.
   #state{conn = Conn, bucket = Bucket, index = Index, get_opts = Opts} = State,
@@ -274,7 +266,7 @@ find_by_query(DocName, Conditions, undefined, undefined, State) ->
     {error, Error} ->
       {error, Error, State}
   end;
-find_by_query(DocName, Conditions, Limit, Offset, State) ->
+find_by(DocName, Conditions, Limit, Offset, State) ->
   %% Limit and offset were specified so we return a possibly partial result set.
   #state{conn = Conn, bucket = Bucket, index = Index, get_opts = Opts} = State,
   TranslatedConditions = transform_conditions(DocName, Conditions),
@@ -316,20 +308,21 @@ find_by_query_get_keys(Conn, Index, Query) ->
       {error, Error2}
   end.
 
--spec find_by(
-  sumo:schema_name(),
-  sumo:conditions(),
-  term(),
-  non_neg_integer(),
-  non_neg_integer(),
-  state()
-) -> sumo_store:result([sumo_internal:doc()], state()).
+-spec find_by(DocName, Conditions, Sort, Limit, Offset, State) -> Response when
+  DocName    :: sumo:schema_name(),
+  Conditions :: sumo:conditions(),
+  Sort       :: term(),
+  Limit      :: non_neg_integer(),
+  Offset     :: non_neg_integer(),
+  State      :: state(),
+  Response   :: sumo_store:result([sumo_internal:doc()], state()).
 find_by(_DocName, _Conditions, _SortFields, _Limit, _Offset, State) ->
   {error, not_supported, State}.
 
--spec create_schema(
-  sumo:schema(), state()
-) -> sumo_store:result(state()).
+-spec create_schema(Schema, State) -> Response when
+  Schema   :: sumo_internal:schema(),
+  State    :: state(),
+  Response :: sumo_store:result(state()).
 create_schema(_Schema, State) ->
   {ok, State}.
 
