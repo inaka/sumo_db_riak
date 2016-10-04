@@ -89,7 +89,7 @@ follow these steps:
 
 ```erlang
 {deps, [
-  {sumo_db_riak, "0.0.1"}
+  {sumo_db_riak, "0.1.0"}
 ]}.
 ```
 

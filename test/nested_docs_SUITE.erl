@@ -89,7 +89,7 @@ find_by(_Config) ->
       total     := 300}
   ] = Results2,
 
-  PO1 = sumo:find(purchases, <<"ID1">>),
+  PO1 = sumo:fetch(purchases, <<"ID1">>),
   #{id        := <<"ID1">>,
     currency  := <<"USD">>,
     items     := [#{part_num := <<"123">>}, #{part_num := <<"456">>}],
@@ -98,7 +98,7 @@ find_by(_Config) ->
     bill_to   := #{city := <<"city1">>, country := <<"US">>},
     total     := 300} = PO1,
 
-  notfound = sumo:find(purchases, <<"ID123">>),
+  notfound = sumo:fetch(purchases, <<"ID123">>),
 
   Results3 = sumo:find_by(
     purchases, [{'ship_to.city', <<"city2">>}]),
@@ -119,17 +119,17 @@ find_by(_Config) ->
 
 -spec update(config()) -> ok.
 update(_Config) ->
-  PO1 = sumo:find(purchases, <<"ID1">>),
+  PO1 = sumo:fetch(purchases, <<"ID1">>),
 
   PO1x = sumo_test_purchase_order:order_num(PO1, <<"0001">>),
   sumo:persist(purchases, PO1x),
 
-  PO1x = sumo:find(purchases, <<"ID1">>),
+  PO1x = sumo:fetch(purchases, <<"ID1">>),
 
   PO1y = sumo_test_purchase_order:order_num(PO1x, <<"00011">>),
   sumo:persist(purchases, PO1y),
 
-  PO1y = sumo:find(purchases, <<"ID1">>),
+  PO1y = sumo:fetch(purchases, <<"ID1">>),
 
   ok.
 
