@@ -29,8 +29,8 @@ case "${1:?}" in
         sudo riak-admin bucket-type activate "${BucketType:?}"
         curl -f -XPUT "${RiakHttpApi:?}"/search/index/"${TestSearchIndex:?}" -H 'Content-Type: application/json' -d '{"schema":"_yz_default"}'
         until test 200 -ne $(curl -s -o /dev/null -w '%{http_code}' "${RiakHttpApi:?}"/search/index/"${TestSearchIndex:?}"); do sleep 1; done
-        ## Even if HTTP API serves search index successfully, attempt to set search_index on bucket-type may fail because index "does not exist".
-        until ( sudo riak-admin bucket-type update "${BucketType:?}" '{"props":{"search_index":"'"${TestSearchIndex:?}"'"}}'; S=$?; case $S in 0) exit 1;; *) exit 0;; esac; ); do sleep 1; done
+        ## Even if HTTP API serve search index successfully, attempt to set search_index on bucket-type may fail because index "does not exist".
+        until sudo riak-admin bucket-type update "${BucketType:?}" '{"props":{"search_index":"'"${TestSearchIndex:?}"'"}}'; do sleep 1; done
         "${Rebar3:?}" ct
         ;;
 esac
