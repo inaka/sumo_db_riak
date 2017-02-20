@@ -86,7 +86,7 @@
 %% @end
 -record(state, {
   conn     :: connection(),
-  bucket   :: binary() | {binary(), binary()},
+  bucket   :: {binary(), binary()},
   index    :: index(),
   get_opts :: get_options(),
   put_opts :: put_options(),
@@ -356,13 +356,13 @@ rmap_to_map(DocName, RMap) ->
   end, #{}, riakc_map:value(RMap)).
 
 -spec fetch_map(
-  connection(), bucket(), key(), options()
+  connection(), bucket_and_type(), key(), options()
 ) -> {ok, riakc_datatype:datatype()} | {error, term()}.
 fetch_map(Conn, Bucket, Key, Opts) ->
   riakc_pb_socket:fetch_type(Conn, Bucket, Key, Opts).
 
 -spec fetch_docs(
-  sumo:schema_name(), connection(), bucket(), [key()], options()
+  sumo:schema_name(), connection(), bucket_and_type(), [key()], options()
 ) -> [sumo_internal:doc()].
 fetch_docs(DocName, Conn, Bucket, Keys, Opts) ->
   lists:foldl(fun(K, Acc) ->
@@ -373,13 +373,14 @@ fetch_docs(DocName, Conn, Bucket, Keys, Opts) ->
   end, [], Keys).
 
 -spec delete_map(
-  connection(), bucket(), key(), options()
+  connection(), bucket_and_type(), key(), options()
 ) -> ok | {error, term()}.
 delete_map(Conn, Bucket, Key, Opts) ->
   riakc_pb_socket:delete(Conn, Bucket, Key, Opts).
 
 -spec update_map(
-  connection(), bucket(), key() | undefined, riakc_map:crdt_map(), options()
+  connection(), bucket_and_type(), key() | undefined,
+  riakc_map:crdt_map(), options()
 ) ->
   ok | {ok, Key::binary()} | {ok, riakc_datatype:datatype()} |
   {ok, Key::binary(), riakc_datatype:datatype()} | {error, term()}.
