@@ -1,0 +1,35 @@
+#!/bin/bash
+
+set -ev # Ref https://docs.travis-ci.com/user/customizing-the-build/#Implementing-Complex-Build-Steps
+
+case "${1:?}" in
+    before_install)
+        ## Travis CI does not support rebar3 yet. See https://github.com/travis-ci/travis-ci/issues/6506#issuecomment-275189490
+        Rebar3="${2:?}"
+        curl -f -L -o "${Rebar3:?}" https://github.com/erlang/rebar3/releases/download/3.3.5/rebar3
+        chmod +x "${Rebar3:?}"
+        ;;
+    install)
+        Rebar3="${2:?}"
+        "${Rebar3:?}" deps
+        ;;
+    before_script)
+        sudo riak-admin services
+        sudo riak-admin wait-for-service riak_kv
+        sudo riak-admin wait-for-service yokozuna
+        sudo riak-admin test
+        ;;
+    script)
+        Rebar3="${2:?}"
+        RiakHttpApi="${3:?}"
+        BucketType="${4:?}"
+        TestSearchIndex="${5:?}"
+        sudo riak-admin bucket-type create "${BucketType:?}" '{"props":{"datatype":"map"}}'
+        sudo riak-admin bucket-type activate "${BucketType:?}"
+        curl -f -XPUT "${RiakHttpApi:?}"/search/index/"${TestSearchIndex:?}" -H 'Content-Type: application/json' -d '{"schema":"_yz_default"}'
+        until test 200 -ne $(curl -s -o /dev/null -w '%{http_code}' "${RiakHttpApi:?}"/search/index/"${TestSearchIndex:?}"); do sleep 1; done
+        ## Even if HTTP API serves search index successfully, attempt to set search_index on bucket-type may fail because index "does not exist".
+        until ( sudo riak-admin bucket-type update "${BucketType:?}" '{"props":{"search_index":"'"${TestSearchIndex:?}"'"}}'; S=$?; case $S in 0) exit 1;; *) exit 0;; esac; ); do sleep 1; done
+        "${Rebar3:?}" ct
+        ;;
+esac
