@@ -12,6 +12,7 @@ case "${1:?}" in
     install)
         Rebar3="${2:?}"
         "${Rebar3:?}" deps
+        "${Rebar3:?}" dialyzer -u true -s false
         ;;
     before_script)
         sudo riak-admin services
