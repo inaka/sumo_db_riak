@@ -1,5 +1,7 @@
 # sumo_db_riak
 
+[![Build Status](https://travis-ci.org/inaka/sumo_db_riak.svg?branch=master)](https://travis-ci.org/inaka/sumo_db_riak)
+
 This is the [Riak](http://docs.basho.com/riak/latest/) adapter for [sumo_db](https://github.com/inaka/sumo_db).
 
 
