@@ -13,3 +13,7 @@ before_script:
   - ./ci before_script
 script:
   - ./ci script "${PWD:?}"/rebar3 http://127.0.0.1:8098 maps sumo_test_index
+cache:
+  directories:
+    - .plt
+
