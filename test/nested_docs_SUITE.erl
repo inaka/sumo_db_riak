@@ -75,7 +75,9 @@ find_by(_Config) ->
       ship_to   := #{city := <<"city1">>, country := <<"US">>},
       bill_to   := #{city := <<"city1">>, country := <<"US">>},
       total     := 300}
-  ] = Results1,
+  ] = lists:sort(
+    fun(A, B) -> maps:get(id, A) =< maps:get(id, B) end,
+    Results1),
 
   Results2 = sumo:find_by(purchases, [{currency, <<"EUR">>}]),
   1 = length(Results2),
