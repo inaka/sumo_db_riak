@@ -1,0 +1,22 @@
+{"1.1.0",
+[{<<"hamcrest">>,{pkg,<<"basho_hamcrest">>,<<"0.4.1">>},2},
+ {<<"iso8601">>,{pkg,<<"inaka_iso8601">>,<<"1.1.2">>},0},
+ {<<"quickrand">>,{pkg,<<"quickrand">>,<<"1.5.4">>},2},
+ {<<"riak_pb">>,{pkg,<<"riak_pb">>,<<"2.3.2">>},1},
+ {<<"riakc">>,{pkg,<<"riakc">>,<<"2.5.3">>},0},
+ {<<"sumo_db">>,
+  {git,"https://github.com/inaka/sumo_db",
+       {ref,"7025a52904442cecd081983511674bf3753bbe38"}},
+  0},
+ {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"1.5.2-rc1">>},1},
+ {<<"worker_pool">>,{pkg,<<"worker_pool">>,<<"2.0.1">>},1}]}.
+[
+{pkg_hash,[
+ {<<"hamcrest">>, <<"FB7B2C92D252A1E9DB936750B86089ADDAEBEB8F87967FB4BBDDA61E8863338E">>},
+ {<<"iso8601">>, <<"6D84BBA9641FA39802E6B53C57E0B61B2F61BF8E81C112356B57BE8DA31DE771">>},
+ {<<"quickrand">>, <<"47ADD4755CC5F209CBEFFD6F47C84061196CD7FAD99FD8FD12418EB0D06B939D">>},
+ {<<"riak_pb">>, <<"48FFBF66DBB3F136AB9A7134BAC4E496754BAA5EF58C4F50A61326736D996390">>},
+ {<<"riakc">>, <<"6132D9E687A0DFD314B2B24C4594302CA8B55568A5D733C491D8FB6CD4004763">>},
+ {<<"uuid">>, <<"D4022AB3F4F1A28E86EA15D4075CB0C57EC908D8AF1CA2E8AF28AA815EF93C3A">>},
+ {<<"worker_pool">>, <<"B90273074898FA89434317991E00884DBBAFFAB5BFD964A7586317CD16FB18D4">>}]}
+].

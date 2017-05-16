@@ -1,5 +1,0 @@
-%% Specific modules to include in cover.
-{incl_mods, [
-  sumo_backend_riak,
-  sumo_store_riak
-]}.

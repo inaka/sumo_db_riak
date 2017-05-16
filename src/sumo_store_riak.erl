@@ -51,7 +51,8 @@
   delete_by/3,
   delete_all/2,
   find_all/2, find_all/5,
-  find_by/3, find_by/5, find_by/6
+  find_by/3, find_by/5, find_by/6,
+  count/2
 ]).
 
 %% Utilities
@@ -109,15 +110,13 @@ init(Opts) ->
   % which creates and initializes the storage backend.
   Backend = proplists:get_value(storage_backend, Opts),
   Conn = sumo_backend_riak:get_connection(Backend),
-  BucketType = sumo_utils:to_bin(
-    sumo_utils:keyfind(bucket_type, Opts, <<"maps">>)),
-  Bucket = sumo_utils:to_bin(
-    sumo_utils:keyfind(bucket, Opts, <<"sumo">>)),
-  Index = sumo_utils:to_bin(
-    sumo_utils:keyfind(index, Opts, <<"sumo_index">>)),
+  BucketType = sumo_utils:to_bin(sumo_utils:keyfind(bucket_type, Opts, <<"maps">>)),
+  Bucket = sumo_utils:to_bin(sumo_utils:keyfind(bucket, Opts, <<"sumo">>)),
+  Index = sumo_utils:to_bin(sumo_utils:keyfind(index, Opts, <<"sumo_index">>)),
   GetOpts = proplists:get_value(get_options, Opts, []),
   PutOpts = proplists:get_value(put_options, Opts, []),
   DelOpts = proplists:get_value(delete_options, Opts, []),
+
   State = #state{
     conn = Conn,
     bucket = {BucketType, Bucket},
@@ -225,12 +224,12 @@ find_all(DocName, State) ->
   end.
 
 -spec find_all(DocName, Sort, Limit, Offset, State) -> Response when
-  DocName    :: sumo:schema_name(),
-  Sort :: term(),
-  Limit      :: non_neg_integer(),
-  Offset     :: non_neg_integer(),
-  State      :: state(),
-  Response   :: sumo_store:result([sumo_internal:doc()], state()).
+  DocName  :: sumo:schema_name(),
+  Sort     :: term(),
+  Limit    :: non_neg_integer(),
+  Offset   :: non_neg_integer(),
+  State    :: state(),
+  Response :: sumo_store:result([sumo_internal:doc()], state()).
 find_all(DocName, Sort, Limit, Offset, State) ->
   find_by(DocName, [], Sort, Limit, Offset, State).
 
@@ -323,6 +322,17 @@ find_by_query_get_keys(Conn, Index, Query) ->
       {error, Error2}
   end.
 
+-spec count(DocName, State) -> Response when
+  DocName  :: sumo:schema_name(),
+  State    :: state(),
+  Response :: sumo_store:result(non_neg_integer(), state()).
+count(_DocName, #state{conn = Conn, bucket = Bucket} = State) ->
+  Sum = fun(Kst, Acc) -> length(Kst) + Acc end,
+  case stream_keys(Conn, Bucket, Sum, 0) of
+    {ok, Count} -> {ok, Count, State};
+    {_, _}      -> {error, {error, count_failed}, State}
+  end.
+
 -spec create_schema(Schema, State) -> Response when
   Schema   :: sumo_internal:schema(),
   State    :: state(),
@@ -343,9 +353,7 @@ doc_to_rmap(Doc) ->
 map_to_rmap(Map) ->
   lists:foldl(fun rmap_update/2, riakc_map:new(), maps:to_list(Map)).
 
--spec rmap_to_doc(
-  sumo:schema_name(), riakc_map:crdt_map()
-) -> sumo_internal:doc().
+-spec rmap_to_doc(sumo:schema_name(), riakc_map:crdt_map()) -> sumo_internal:doc().
 rmap_to_doc(DocName, RMap) ->
   wakeup(sumo_internal:new_doc(DocName, rmap_to_map(DocName, RMap))).
 
@@ -359,15 +367,22 @@ rmap_to_map(DocName, RMap) ->
       maps:put(sumo_utils:to_atom(K), V, Acc)
   end, #{}, riakc_map:value(RMap)).
 
--spec fetch_map(
-  connection(), bucket_and_type(), key(), options()
-) -> {ok, riakc_datatype:datatype()} | {error, term()}.
+-spec fetch_map(Conn, Bucket, Key, Opts) -> Result when
+  Conn   :: connection(),
+  Bucket :: bucket_and_type(),
+  Key    :: key(),
+  Opts   :: options(),
+  Result :: {ok, riakc_datatype:datatype()} | {error, term()}.
 fetch_map(Conn, Bucket, Key, Opts) ->
   riakc_pb_socket:fetch_type(Conn, Bucket, Key, Opts).
 
--spec fetch_docs(
-  sumo:schema_name(), connection(), bucket_and_type(), [key()], options()
-) -> [sumo_internal:doc()].
+-spec fetch_docs(DocName, Conn, Bucket, Keys, Opts) -> Result when
+  DocName :: sumo:schema_name(),
+  Conn    :: connection(),
+  Bucket  :: bucket_and_type(),
+  Keys    :: [key()],
+  Opts    :: options(),
+  Result  :: [sumo_internal:doc()].
 fetch_docs(DocName, Conn, Bucket, Keys, Opts) ->
   lists:foldl(fun(K, Acc) ->
     case fetch_map(Conn, Bucket, K, Opts) of
@@ -376,28 +391,34 @@ fetch_docs(DocName, Conn, Bucket, Keys, Opts) ->
     end
   end, [], Keys).
 
--spec delete_map(
-  connection(), bucket_and_type(), key(), options()
-) -> ok | {error, term()}.
+-spec delete_map(connection(), bucket_and_type(), key(), options()) -> ok | {error, term()}.
 delete_map(Conn, Bucket, Key, Opts) ->
   riakc_pb_socket:delete(Conn, Bucket, Key, Opts).
 
--spec update_map(
-  connection(), bucket_and_type(), key() | undefined,
-  riakc_map:crdt_map(), options()
-) ->
-  ok | {ok, Key::binary()} | {ok, riakc_datatype:datatype()} |
-  {ok, Key::binary(), riakc_datatype:datatype()} | {error, term()}.
+-spec update_map(Conn, Bucket, Key, Map, Opts) -> Result when
+  Conn   :: connection(),
+  Bucket :: bucket_and_type(),
+  Key    :: key() | undefined,
+  Map    :: riakc_map:crdt_map(),
+  Opts   :: options(),
+  Ok     :: ok | {ok, Key | riakc_datatype:datatype()} | {ok, Key, riakc_datatype:datatype()},
+  Error  :: {error, term()},
+  Result :: Ok | Error.
 update_map(Conn, Bucket, Key, Map, Opts) ->
-riakc_pb_socket:update_type(Conn, Bucket, Key, riakc_map:to_op(Map), Opts).
+  riakc_pb_socket:update_type(Conn, Bucket, Key, riakc_map:to_op(Map), Opts).
 
--spec search(
-  connection(), index(), binary(), list(), non_neg_integer(), non_neg_integer()
-) -> {ok, search_result()} | {error, term()}.
-search(Conn, Index, Query, SortOpts, 0, 0) ->
-  riakc_pb_socket:search(Conn, Index, Query, SortOpts);
-search(Conn, Index, Query, SortOpts, Limit, Offset) ->
-  riakc_pb_socket:search(Conn, Index, Query, [{start, Offset}, {rows, Limit}] ++ SortOpts).
+-spec search(Conn, Index, Query, Sort, Limit, Offset) -> Result when
+  Conn   :: connection(),
+  Index  :: index(),
+  Query  :: binary(),
+  Sort   :: [term()],
+  Limit  :: non_neg_integer(),
+  Offset :: non_neg_integer(),
+  Result :: {ok, search_result()} | {error, term()}.
+search(Conn, Index, Query, Sort, 0, 0) ->
+  riakc_pb_socket:search(Conn, Index, Query, Sort);
+search(Conn, Index, Query, Sort, Limit, Offset) ->
+  riakc_pb_socket:search(Conn, Index, Query, [{start, Offset}, {rows, Limit}] ++ Sort).
 
 -spec build_query(sumo:conditions()) -> binary().
 build_query(Conditions) ->
@@ -708,5 +729,7 @@ build_sort([]) ->
 build_sort({Field, Dir}) ->
   [{sort, <<(sumo_utils:to_bin(Field))/binary, "_register", (sumo_utils:to_bin(Dir))/binary>>}];
 build_sort(Sorts) ->
-  Res = [binary:list_to_bin([sumo_utils:to_bin(Field), "_register", " ", sumo_utils:to_bin(Dir)]) || {Field, Dir} <- Sorts],
+  Res = [begin
+    binary:list_to_bin([sumo_utils:to_bin(Field), "_register", " ", sumo_utils:to_bin(Dir)])
+  end || {Field, Dir} <- Sorts],
   [{sort, binary:list_to_bin(interpose(", ", Res))}].
