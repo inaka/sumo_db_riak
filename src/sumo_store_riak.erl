@@ -47,8 +47,7 @@
   delete_by/3,
   delete_all/2,
   find_all/2, find_all/5,
-  find_by/3, find_by/5, find_by/6,
-  count/2
+  find_by/3, find_by/5, find_by/6
 ]).
 
 %% Utilities
@@ -290,11 +289,6 @@ find_by(DocName, Conditions, Sort, Limit, Offset, State) ->
     {error, Error} ->
       {error, Error, State}
   end.
-
--spec count(sumo:schema_name(), state()) -> integer().
-count(_DocName, _State) ->
-  %% @TODO: implement
-  throw(not_implemented).
 
 %% @doc
 %% This function is used when none pagination parameter is given.
