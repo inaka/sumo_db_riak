@@ -386,19 +386,15 @@ delete_map(Conn, Bucket, Key, Opts) ->
   ok | {ok, Key::binary()} | {ok, riakc_datatype:datatype()} |
   {ok, Key::binary(), riakc_datatype:datatype()} | {error, term()}.
 update_map(Conn, Bucket, Key, Map, Opts) ->
-  riakc_pb_socket:update_type(Conn, Bucket, Key, riakc_map:to_op(Map), Opts).
+riakc_pb_socket:update_type(Conn, Bucket, Key, riakc_map:to_op(Map), Opts).
 
 -spec search(
   connection(), index(), binary(), list(), non_neg_integer(), non_neg_integer()
 ) -> {ok, search_result()} | {error, term()}.
-search(Conn, Index, Query, [], 0, 0) ->
-  riakc_pb_socket:search(Conn, Index, Query);
+search(Conn, Index, Query, Sorts, 0, 0) ->
+  riakc_pb_socket:search(Conn, Index, Query, Sorts);
 search(Conn, Index, Query, Sorts, Limit, Offset) ->
-  Opts = [{start, Offset}, {rows, Limit}] ++ Sorts,
-  io:format("++++ query ~p opts ~p~n", [Query, Opts]),
-  Res = riakc_pb_socket:search(Conn, Index, Query, Opts),
-  io:format("++++ result ~p~n", [Res]),
-  Res.
+  riakc_pb_socket:search(Conn, Index, Query, [{start, Offset}, {rows, Limit}] ++ Sorts).
 
 -spec build_query(sumo:conditions()) -> binary().
 build_query(Conditions) ->
@@ -705,8 +701,9 @@ like_to_wildcard_search(Like) ->
 
 %% @private
 build_sort([]) ->
- [];
+  [];
 build_sort({Field, Dir}) ->
   [{sort, <<(sumo_utils:to_bin(Field))/binary, "_register", (sumo_utils:to_bin(Dir))/binary>>}];
 build_sort(Sorts) ->
-[{sort, binary:list_to_bin([sumo_utils:to_bin(Field), "_register", " ", sumo_utils:to_bin(Dir)])} || {Field, Dir} <- Sorts].
+  Res = [binary:list_to_bin([sumo_utils:to_bin(Field), "_register", " ", sumo_utils:to_bin(Dir)]) || {Field, Dir} <- Sorts],
+  [{sort, binary:list_to_bin(interpose(", ", Res))}].
