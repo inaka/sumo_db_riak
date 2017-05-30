@@ -60,7 +60,7 @@
   fetch_docs/5,
   delete_map/4,
   update_map/5,
-  search/5,
+  search/6,
   build_query/1
 ]).
 
@@ -220,16 +220,16 @@ find_all(DocName, State) ->
     {_, Docs}  -> {error, Docs, State}
   end.
 
--spec find_all(DocName, SortFields, Limit, Offset, State) -> Response when
+-spec find_all(DocName, Sort, Limit, Offset, State) -> Response when
   DocName    :: sumo:schema_name(),
-  SortFields :: term(),
+  Sort :: term(),
   Limit      :: non_neg_integer(),
   Offset     :: non_neg_integer(),
   State      :: state(),
   Response   :: sumo_store:result([sumo_internal:doc()], state()).
-find_all(DocName, _SortFields, Limit, Offset, State) ->
+find_all(DocName, Sort, Limit, Offset, State) ->
   %% @todo implement search with sort parameters.
-  find_by(DocName, [], Limit, Offset, State).
+  find_by(DocName, [], Sort, Limit, Offset, State).
 
 %% @doc
 %% find_by may be used in two ways: either with a given limit and offset or not
@@ -268,10 +268,22 @@ find_by(DocName, Conditions, undefined, undefined, State) ->
   end;
 find_by(DocName, Conditions, Limit, Offset, State) ->
   %% Limit and offset were specified so we return a possibly partial result set.
+  find_by(DocName, Conditions, [], Limit, Offset, State).
+
+-spec find_by(DocName, Conditions, Sort, Limit, Offset, State) -> Response when
+  DocName    :: sumo:schema_name(),
+  Conditions :: sumo:conditions(),
+  Sort       :: term(),
+  Limit      :: non_neg_integer(),
+  Offset     :: non_neg_integer(),
+  State      :: state(),
+  Response   :: sumo_store:result([sumo_internal:doc()], state()).
+find_by(DocName, Conditions, SortFields, Limit, Offset, State) ->
   #state{conn = Conn, bucket = Bucket, index = Index, get_opts = Opts} = State,
   TranslatedConditions = transform_conditions(DocName, Conditions),
-  Query = build_query(TranslatedConditions),
-  case search_keys_by(Conn, Index, Query, Limit, Offset) of
+  Sort = build_sort(SortFields),
+  Query = <<(build_query(TranslatedConditions))/binary>>,
+  case search_keys_by(Conn, Index, Query, Sort, Limit, Offset) of
     {ok, {_Total, Keys}} ->
       Results = fetch_docs(DocName, Conn, Bucket, Keys, Opts),
       {ok, Results, State};
@@ -288,7 +300,7 @@ find_by(DocName, Conditions, Limit, Offset, State) ->
 %% @end
 %% @private
 find_by_query_get_keys(Conn, Index, Query) ->
-  InitialResults = case search_keys_by(Conn, Index, Query, 0, 0) of
+  InitialResults = case search_keys_by(Conn, Index, Query, [], 0, 0) of
     {ok, {Total, Keys}} -> {ok, length(Keys), Total, Keys};
     Error               -> Error
   end,
@@ -296,7 +308,7 @@ find_by_query_get_keys(Conn, Index, Query) ->
     {ok, ResultCount, Total1, Keys1} when ResultCount < Total1 ->
       Limit  = Total1 - ResultCount,
       Offset = ResultCount,
-      case search_keys_by(Conn, Index, Query, Limit, Offset) of
+      case search_keys_by(Conn, Index, Query, [], Limit, Offset) of
         {ok, {Total1, Keys2}} ->
           {ok, lists:append(Keys1, Keys2)};
         {error, Error1} ->
@@ -307,17 +319,6 @@ find_by_query_get_keys(Conn, Index, Query) ->
     {error, Error2} ->
       {error, Error2}
   end.
-
--spec find_by(DocName, Conditions, Sort, Limit, Offset, State) -> Response when
-  DocName    :: sumo:schema_name(),
-  Conditions :: sumo:conditions(),
-  Sort       :: term(),
-  Limit      :: non_neg_integer(),
-  Offset     :: non_neg_integer(),
-  State      :: state(),
-  Response   :: sumo_store:result([sumo_internal:doc()], state()).
-find_by(_DocName, _Conditions, _SortFields, _Limit, _Offset, State) ->
-  {error, not_supported, State}.
 
 -spec create_schema(Schema, State) -> Response when
   Schema   :: sumo_internal:schema(),
@@ -388,12 +389,16 @@ update_map(Conn, Bucket, Key, Map, Opts) ->
   riakc_pb_socket:update_type(Conn, Bucket, Key, riakc_map:to_op(Map), Opts).
 
 -spec search(
-  connection(), index(), binary(), non_neg_integer(), non_neg_integer()
+  connection(), index(), binary(), list(), non_neg_integer(), non_neg_integer()
 ) -> {ok, search_result()} | {error, term()}.
-search(Conn, Index, Query, 0, 0) ->
+search(Conn, Index, Query, [], 0, 0) ->
   riakc_pb_socket:search(Conn, Index, Query);
-search(Conn, Index, Query, Limit, Offset) ->
-  riakc_pb_socket:search(Conn, Index, Query, [{start, Offset}, {rows, Limit}]).
+search(Conn, Index, Query, Sorts, Limit, Offset) ->
+  Opts = [{start, Offset}, {rows, Limit}] ++ Sorts,
+  io:format("++++ query ~p opts ~p~n", [Query, Opts]),
+  Res = riakc_pb_socket:search(Conn, Index, Query, Opts),
+  io:format("++++ result ~p~n", [Res]),
+  Res.
 
 -spec build_query(sumo:conditions()) -> binary().
 build_query(Conditions) ->
@@ -564,8 +569,8 @@ receive_stream(Ref, F, Acc) ->
 %% Search all docs that match with the given query, but only keys are returned.
 %% IMPORTANT: assumes that default schema 'yokozuna' is being used.
 %% @end
-search_keys_by(Conn, Index, Query, Limit, Offset) ->
-  case sumo_store_riak:search(Conn, Index, Query, Limit, Offset) of
+search_keys_by(Conn, Index, Query, Sort, Limit, Offset) ->
+  case sumo_store_riak:search(Conn, Index, Query, Sort, Limit, Offset) of
     {ok, {search_results, Results, _, Total}} ->
       Keys = lists:foldl(fun({_, KV}, Acc) ->
         {_, K} = lists:keyfind(<<"_yz_rk">>, 1, KV),
@@ -578,7 +583,7 @@ search_keys_by(Conn, Index, Query, Limit, Offset) ->
 
 %% @private
 search_docs_by(DocName, Conn, Index, Query, Limit, Offset) ->
-  case search(Conn, Index, Query, Limit, Offset) of
+  case search(Conn, Index, Query, [], Limit, Offset) of
     {ok, {search_results, Results, _, Total}} ->
       F = fun({_, KV}, Acc) -> [kv_to_doc(DocName, KV) | Acc] end,
       NewRes = lists:reverse(lists:foldl(F, [], Results)),
@@ -640,7 +645,7 @@ build_query1({Name, 'not_null'}, _EscapeFun, _QuoteFun) ->
   %% not_null: (Field:[* TO *] AND -Field:<<"$nil">>)
   Val = {'and', [{Name, <<"[* TO *]">>}, {Name, '/=', <<"$nil">>}]},
   Bypass = fun(X) -> X end,
-  build_query1(Val, Bypass, Bypass);
+build_query1(Val, Bypass, Bypass);
 build_query1({Name, Value}, _EscapeFun, QuoteFun) ->
   query_eq(Name, QuoteFun(Value)).
 
@@ -697,3 +702,11 @@ whitespace(Value) ->
 like_to_wildcard_search(Like) ->
   whitespace(binary:replace(
     sumo_utils:to_bin(Like), <<"%">>, <<"*">>, [global])).
+
+%% @private
+build_sort([]) ->
+ [];
+build_sort({Field, Dir}) ->
+  [{sort, <<(sumo_utils:to_bin(Field))/binary, "_register", (sumo_utils:to_bin(Dir))/binary>>}];
+build_sort(Sorts) ->
+[{sort, binary:list_to_bin([sumo_utils:to_bin(Field), "_register", " ", sumo_utils:to_bin(Dir)])} || {Field, Dir} <- Sorts].
