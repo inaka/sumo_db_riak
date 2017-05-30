@@ -228,7 +228,6 @@ find_all(DocName, State) ->
   State      :: state(),
   Response   :: sumo_store:result([sumo_internal:doc()], state()).
 find_all(DocName, Sort, Limit, Offset, State) ->
-  %% @todo implement search with sort parameters.
   find_by(DocName, [], Sort, Limit, Offset, State).
 
 %% @doc
@@ -278,12 +277,12 @@ find_by(DocName, Conditions, Limit, Offset, State) ->
   Offset     :: non_neg_integer(),
   State      :: state(),
   Response   :: sumo_store:result([sumo_internal:doc()], state()).
-find_by(DocName, Conditions, SortFields, Limit, Offset, State) ->
+find_by(DocName, Conditions, Sort, Limit, Offset, State) ->
   #state{conn = Conn, bucket = Bucket, index = Index, get_opts = Opts} = State,
   TranslatedConditions = transform_conditions(DocName, Conditions),
-  Sort = build_sort(SortFields),
+  SortOpts = build_sort(Sort),
   Query = <<(build_query(TranslatedConditions))/binary>>,
-  case search_keys_by(Conn, Index, Query, Sort, Limit, Offset) of
+  case search_keys_by(Conn, Index, Query, SortOpts, Limit, Offset) of
     {ok, {_Total, Keys}} ->
       Results = fetch_docs(DocName, Conn, Bucket, Keys, Opts),
       {ok, Results, State};
@@ -391,10 +390,10 @@ riakc_pb_socket:update_type(Conn, Bucket, Key, riakc_map:to_op(Map), Opts).
 -spec search(
   connection(), index(), binary(), list(), non_neg_integer(), non_neg_integer()
 ) -> {ok, search_result()} | {error, term()}.
-search(Conn, Index, Query, Sorts, 0, 0) ->
-  riakc_pb_socket:search(Conn, Index, Query, Sorts);
-search(Conn, Index, Query, Sorts, Limit, Offset) ->
-  riakc_pb_socket:search(Conn, Index, Query, [{start, Offset}, {rows, Limit}] ++ Sorts).
+search(Conn, Index, Query, SortOpts, 0, 0) ->
+  riakc_pb_socket:search(Conn, Index, Query, SortOpts);
+search(Conn, Index, Query, SortOpts, Limit, Offset) ->
+  riakc_pb_socket:search(Conn, Index, Query, [{start, Offset}, {rows, Limit}] ++ SortOpts).
 
 -spec build_query(sumo:conditions()) -> binary().
 build_query(Conditions) ->
@@ -565,8 +564,8 @@ receive_stream(Ref, F, Acc) ->
 %% Search all docs that match with the given query, but only keys are returned.
 %% IMPORTANT: assumes that default schema 'yokozuna' is being used.
 %% @end
-search_keys_by(Conn, Index, Query, Sort, Limit, Offset) ->
-  case sumo_store_riak:search(Conn, Index, Query, Sort, Limit, Offset) of
+search_keys_by(Conn, Index, Query, SortOpts, Limit, Offset) ->
+  case sumo_store_riak:search(Conn, Index, Query, SortOpts, Limit, Offset) of
     {ok, {search_results, Results, _, Total}} ->
       Keys = lists:foldl(fun({_, KV}, Acc) ->
         {_, K} = lists:keyfind(<<"_yz_rk">>, 1, KV),
