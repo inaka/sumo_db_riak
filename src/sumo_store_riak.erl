@@ -147,7 +147,7 @@ fetch(DocName, Id, State) ->
   case fetch_map(Conn, Bucket, sumo_utils:to_bin(Id), Opts) of
     {ok, RMap} ->
       {ok, rmap_to_doc(DocName, RMap), State};
-    {error, {notfound, _}} ->
+    {error, {notfound, _Type = map}} ->
       {error, notfound, State};
     {error, Error} ->
       {error, Error, State}
@@ -202,8 +202,8 @@ delete_all(_DocName, State) ->
     Acc + length(Kst)
   end,
   case stream_keys(Conn, Bucket, Del, 0) of
-    {ok, Count} -> {ok, Count, State};
-    {_, Count}  -> {error, Count, State}
+    {ok, Count}            -> {ok, Count, State};
+    {error, Reason, Count} -> {error, {stream_keys, Reason, Count}, State}
   end.
 
 -spec find_all(DocName, State) -> Response when
@@ -216,8 +216,8 @@ find_all(DocName, State) ->
     fetch_docs(DocName, Conn, Bucket, Kst, Opts) ++ Acc
   end,
   case stream_keys(Conn, Bucket, Get, []) of
-    {ok, Docs} -> {ok, Docs, State};
-    {_, Docs}  -> {error, Docs, State}
+    {ok, Docs}             -> {ok, Docs, State};
+    {error, Reason, Count} -> {error, {stream_keys, Reason, Count}, State}
   end.
 
 -spec find_all(DocName, Sort, Limit, Offset, State) -> Response when
@@ -489,8 +489,8 @@ new_doc(Doc, #state{conn = Conn, bucket = Bucket, put_opts = Opts}) ->
     undefined ->
       case update_map(Conn, Bucket, undefined, doc_to_rmap(Doc), Opts) of
         {ok, RiakMapId} -> RiakMapId;
-        {error, Error}  -> throw(Error);
-        _               -> throw(unexpected)
+        {error, Error}  -> exit(Error);
+        Unexpected      -> exit({unexpected, Unexpected})
       end;
     Id0 ->
       sumo_utils:to_bin(Id0)
@@ -549,14 +549,14 @@ stream_keys(Conn, Bucket, F, Acc) ->
 %% @private
 receive_stream(Ref, F, Acc) ->
   receive
-    {Ref, {_, Stream, _}} ->
-      receive_stream(Ref, F, F(Stream, Acc));
-    {Ref, {done, _}} ->
+    {Ref, {_, Keys, _}} ->
+      receive_stream(Ref, F, F(Keys, Acc));
+    {Ref, {done, _Continuation = undefined}} ->
       {ok, Acc};
-    _ ->
-      {error, Acc}
+    Unexpected ->
+      {error, {unexpected, Unexpected}, Acc}
   after
-    30000 -> {timeout, Acc}
+    30000 -> {error, timeout, Acc}
   end.
 
 %% @private
