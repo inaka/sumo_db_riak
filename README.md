@@ -98,7 +98,7 @@ follow these steps:
  2. You need at least one doc/entity, let's use [sumo_test_people_riak](./test/sumo_test_people_riak.erl)
     as example.
 
- 3. Provide the configuration file, e.g.: [test.config](./tests/test.config).
+ 3. Provide the configuration file, e.g.: [test.config](./test/test.config).
 
  4. Now you can run your app and start using `sumo` from there.
 
