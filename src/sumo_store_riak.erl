@@ -38,6 +38,10 @@
 
 -include_lib("riakc/include/riakc.hrl").
 
+%% @todo remove this when riakc releases a new version > 2.5.3
+%% They already fixed on master so we should wait until they release a new version
+-dialyzer([{nowarn_function, new_doc/2}]).
+
 %% API.
 -export([
   init/1,
