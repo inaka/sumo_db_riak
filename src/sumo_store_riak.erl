@@ -330,7 +330,7 @@ count(_DocName, #state{conn = Conn, bucket = Bucket} = State) ->
   Sum = fun(Kst, Acc) -> length(Kst) + Acc end,
   case stream_keys(Conn, Bucket, Sum, 0) of
     {ok, Count} -> {ok, Count, State};
-    {_, _}      -> {error, {error, count_failed}, State}
+    {_, _, _}   -> {error, {error, count_failed}, State}
   end.
 
 -spec create_schema(Schema, State) -> Response when
