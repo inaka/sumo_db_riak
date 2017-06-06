@@ -9,6 +9,9 @@
 ]).
 
 %% Test Cases
+-export([count/1]).
+
+%% Test Cases
 -include_lib("mixer/include/mixer.hrl").
 -mixin([
   {sumo_basic_test_helper, [
@@ -42,17 +45,39 @@ all() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(Config) ->
-  {ok, _} = sumo_db_riak:start(),
+  ok = test_utils:start_apps(),
   [{name, people} | Config].
 
 -spec init_per_testcase(atom(), config()) -> config().
 init_per_testcase(_, Config) ->
   {_, Name} = lists:keyfind(name, 1, Config),
-  sumo_basic_test_helper:init_store(Name),
-  timer:sleep(5000),
+  ok = sumo_basic_test_helper:init_store(Name),
+  _ = timer:sleep(5000),
   Config.
 
 -spec end_per_suite(config()) -> config().
 end_per_suite(Config) ->
-  ok = sumo_db_riak:stop(),
+  ok = test_utils:stop_apps(),
   Config.
+
+%%%=============================================================================
+%%% Test Cases
+%%%=============================================================================
+
+-spec count(config()) -> ok.
+count(Config) ->
+  {_, Name} = lists:keyfind(name, 1, Config),
+
+  8 = length(sumo:find_all(Name)),
+  8 = sumo:count(Name),
+
+  _ = try sumo:count(wrong)
+  catch
+    _:no_workers -> ok
+  end,
+
+  Conditions = [{last_name, <<"D">>}],
+  2 = sumo:delete_by(Name, Conditions),
+  _ = timer:sleep(5000),
+  6 = sumo:count(Name),
+  ok.

@@ -37,10 +37,9 @@ all() ->
 -spec init_per_suite(config()) -> config().
 init_per_suite(Config) ->
   {ok, _} = application:ensure_all_started(sumo_db_riak),
-  Name = people,
-  sumo_find_test_helper:init_store(Name),
+  ok = sumo_find_test_helper:init_store(people),
   timer:sleep(5000),
-  [{name, Name}, {people_with_like, true}, {sort, [first_name]} | Config].
+  [{name, people}, {people_with_like, true}, {sort, [first_name]} | Config].
 
 -spec end_per_suite(config()) -> config().
 end_per_suite(Config) ->
