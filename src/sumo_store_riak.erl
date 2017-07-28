@@ -66,7 +66,7 @@
   delete_map/4,
   update_map/5,
   search/6,
-  build_query/1
+  build_query/2
 ]).
 
 %%%=============================================================================
@@ -173,7 +173,7 @@ delete_by(DocName, Conditions, State) when is_list(Conditions) ->
           {error, Error, State}
       end;
     _ ->
-      Query = build_query(Conditions),
+      Query = build_query(Conditions, Bucket),
       case search_docs_by(DocName, Conn, Index, Query, 0, 0) of
         {ok, {Total, Res}}  ->
           delete_docs(Conn, Bucket, Res, Opts),
@@ -185,7 +185,7 @@ delete_by(DocName, Conditions, State) when is_list(Conditions) ->
 delete_by(DocName, Conditions, State) ->
   #state{conn = Conn, bucket = Bucket, index = Index, del_opts = Opts} = State,
   TranslatedConditions = transform_conditions(DocName, Conditions),
-  Query = build_query(TranslatedConditions),
+  Query = build_query(TranslatedConditions, Bucket),
   case search_docs_by(DocName, Conn, Index, Query, 0, 0) of
     {ok, {Total, Res}}  ->
       delete_docs(Conn, Bucket, Res, Opts),
@@ -260,7 +260,7 @@ find_by(DocName, Conditions, undefined, undefined, State) ->
   %% keys.
   #state{conn = Conn, bucket = Bucket, index = Index, get_opts = Opts} = State,
   TranslatedConditions = transform_conditions(DocName, Conditions),
-  Query = build_query(TranslatedConditions),
+  Query = build_query(TranslatedConditions, Bucket),
   case find_by_query_get_keys(Conn, Index, Query) of
     {ok, Keys} ->
       Results = fetch_docs(DocName, Conn, Bucket, Keys, Opts),
@@ -284,7 +284,7 @@ find_by(DocName, Conditions, Sort, Limit, Offset, State) ->
   #state{conn = Conn, bucket = Bucket, index = Index, get_opts = Opts} = State,
   TranslatedConditions = transform_conditions(DocName, Conditions),
   SortOpts = build_sort(Sort),
-  Query = <<(build_query(TranslatedConditions))/binary>>,
+  Query = <<(build_query(TranslatedConditions, Bucket))/binary>>,
   case search_keys_by(Conn, Index, Query, SortOpts, Limit, Offset) of
     {ok, {_Total, Keys}} ->
       Results = fetch_docs(DocName, Conn, Bucket, Keys, Opts),
@@ -420,9 +420,10 @@ search(Conn, Index, Query, Sort, 0, 0) ->
 search(Conn, Index, Query, Sort, Limit, Offset) ->
   riakc_pb_socket:search(Conn, Index, Query, [{start, Offset}, {rows, Limit}] ++ Sort).
 
--spec build_query(sumo:conditions()) -> binary().
-build_query(Conditions) ->
-  build_query1(Conditions, fun escape/1, fun quote/1).
+-spec build_query(sumo:conditions(), {binary(), binary()}) -> binary().
+build_query(Conditions, {Type, Bucket}) ->
+  Query  = build_query1(Conditions, fun escape/1, fun quote/1),
+  <<"_yz_rt:\"", Type/binary, "\" AND " , "_yz_rb:\"", Bucket/binary, "\" AND ", Query/binary>>.
 
 %%%=============================================================================
 %%% Internal functions
