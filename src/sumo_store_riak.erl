@@ -174,9 +174,9 @@ delete_by(DocName, Conditions, State) when is_list(Conditions) ->
       end;
     _ ->
       Query = build_query(Conditions, Bucket),
-      case search_docs_by(DocName, Conn, Index, Query, 0, 0) of
+      case search_keys_by(Conn, Index, Query, [], 0, 0) of
         {ok, {Total, Res}}  ->
-          delete_docs(Conn, Bucket, Res, Opts),
+          delete_keys(Conn, Bucket, Res, Opts),
           {ok, Total, State};
         {error, Error} ->
           {error, Error, State}
@@ -186,9 +186,9 @@ delete_by(DocName, Conditions, State) ->
   #state{conn = Conn, bucket = Bucket, index = Index, del_opts = Opts} = State,
   TranslatedConditions = transform_conditions(DocName, Conditions),
   Query = build_query(TranslatedConditions, Bucket),
-  case search_docs_by(DocName, Conn, Index, Query, 0, 0) of
+  case search_keys_by(Conn, Index, Query, [], 0, 0) of
     {ok, {Total, Res}}  ->
-      delete_docs(Conn, Bucket, Res, Opts),
+      delete_keys(Conn, Bucket, Res, Opts),
       {ok, Total, State};
     {error, Error} ->
       {error, Error, State}
@@ -502,12 +502,6 @@ wakeup_custom(FieldValue, FieldType) ->
   end.
 
 %% @private
-doc_id(Doc) ->
-  DocName = sumo_internal:doc_name(Doc),
-  IdField = sumo_internal:id_field_name(DocName),
-  sumo_internal:get_field(IdField, Doc).
-
-%% @private
 new_doc(Doc, #state{conn = Conn, bucket = Bucket, put_opts = Opts}) ->
   DocName = sumo_internal:doc_name(Doc),
   IdField = sumo_internal:id_field_name(DocName),
@@ -553,18 +547,7 @@ rmap_update({K, V}, RMap) ->
     fun(R) -> riakc_register:set(sumo_utils:to_bin(V), R) end,
     RMap).
 
-%% @private
-kv_to_doc(DocName, KV) ->
-  wakeup(lists:foldl(fun({K, V}, Acc) ->
-    NK = normalize_doc_fields(K),
-    sumo_internal:set_field(sumo_utils:to_atom(NK), V, Acc)
-  end, sumo_internal:new_doc(DocName), KV)).
 
-%% @private
-normalize_doc_fields(Src) ->
-  re:replace(
-    Src, <<"_register|_set|_counter|_flag|_map">>, <<"">>,
-    [{return, binary}, global]).
 
 %% @private
 stream_keys(Conn, Bucket, F, Acc) ->
@@ -603,22 +586,10 @@ search_keys_by(Conn, Index, Query, SortOpts, Limit, Offset) ->
   end.
 
 %% @private
-search_docs_by(DocName, Conn, Index, Query, Limit, Offset) ->
-  case search(Conn, Index, Query, [], Limit, Offset) of
-    {ok, {search_results, Results, _, Total}} ->
-      F = fun({_, KV}, Acc) -> [kv_to_doc(DocName, KV) | Acc] end,
-      NewRes = lists:reverse(lists:foldl(F, [], Results)),
-      {ok, {Total, NewRes}};
-    {error, Error} ->
-      {error, Error}
-  end.
-
-%% @private
-delete_docs(Conn, Bucket, Docs, Opts) ->
-  lists:foreach(fun(D) ->
-    K = doc_id(D),
+delete_keys(Conn, Bucket, Keys, Opts) ->
+  lists:foreach(fun(K) ->
     delete_map(Conn, Bucket, K, Opts)
-  end, Docs).
+  end, Keys).
 
 %%%=============================================================================
 %%% Query Builder
