@@ -52,7 +52,7 @@
   delete_all/2,
   find_all/2, find_all/5,
   find_by/3, find_by/5, find_by/6,
-  count/2
+  count/2, count_by/3
 ]).
 
 %% Utilities
@@ -473,11 +473,13 @@ sleep_custom(FieldValue, FieldType) ->
 %% @private
 wakeup(Doc) ->
   sumo_utils:doc_transform(fun wakeup_fun/4, Doc).
+wakeup_fun(_, _, undefined, _) ->
+  undefined;
 wakeup_fun(_, _, <<"$nil">>, _) ->
   undefined;
 wakeup_fun(FieldType, _, FieldValue, _)
     when FieldType =:= datetime; FieldType =:= date ->
-  case {FieldType, iso8601:is_datetime(FieldValue)} of
+  case {FieldType, sumo_utils:is_datetime(FieldValue)} of
     {datetime, true} -> iso8601:parse(FieldValue);
     {date, true}     -> {Date, _} = iso8601:parse(FieldValue), Date;
     _                -> FieldValue
@@ -705,3 +707,14 @@ build_sort(Sorts) ->
     binary:list_to_bin([sumo_utils:to_bin(Field), "_register", " ", sumo_utils:to_bin(Dir)])
   end || {Field, Dir} <- Sorts],
   [{sort, binary:list_to_bin(interpose(", ", Res))}].
+
+-spec count_by(DocName, Conditions, State) -> Response when
+  DocName    :: sumo:schema_name(),
+  Conditions :: sumo:conditions(),
+  State      :: state(),
+  Response   :: sumo_store:result(non_neg_integer(), state()).
+count_by(DocName, [], State) ->
+  count(DocName, State);
+count_by(_DocName, _Conditions, #{conn := _Conn} = _State) ->
+    0.
+    
