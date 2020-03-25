@@ -340,6 +340,16 @@ count(_DocName, #state{conn = Conn, bucket = Bucket} = State) ->
 create_schema(_Schema, State) ->
   {ok, State}.
 
+-spec count_by(DocName, Conditions, State) -> Response when
+  DocName    :: sumo:schema_name(),
+  Conditions :: sumo:conditions(),
+  State      :: state(),
+  Response   :: sumo_store:result(non_neg_integer(), state()).
+count_by(DocName, [], State) ->
+  count(DocName, State);
+count_by(_DocName, _Conditions, #{conn := _Conn} = _State) ->
+  0.
+    
 %%%=============================================================================
 %%% Utilities
 %%%=============================================================================
@@ -708,13 +718,3 @@ build_sort(Sorts) ->
   end || {Field, Dir} <- Sorts],
   [{sort, binary:list_to_bin(interpose(", ", Res))}].
 
--spec count_by(DocName, Conditions, State) -> Response when
-  DocName    :: sumo:schema_name(),
-  Conditions :: sumo:conditions(),
-  State      :: state(),
-  Response   :: sumo_store:result(non_neg_integer(), state()).
-count_by(DocName, [], State) ->
-  count(DocName, State);
-count_by(_DocName, _Conditions, #{conn := _Conn} = _State) ->
-    0.
-    
