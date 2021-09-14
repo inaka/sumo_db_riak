@@ -395,9 +395,8 @@ validate_date({FieldType, _, FieldValue}) ->
 
 
 sleep(Doc) ->
-  Tdoc = sumo_utils:doc_transform(fun sleep_fun/4, Doc),
-  logger:debug("Transformed ~p|~p.", [Tdoc, Doc]),
-  Tdoc.
+   sumo_utils:doc_transform(fun sleep_fun/4, Doc).
+    
 
 %% @private
 
@@ -466,7 +465,7 @@ wakeup_custom(FieldValue, FieldType) ->
 
 
 update_obj(Conn, Bucket, Id, Doc, _Opts) ->
-  Obj0 = riakc_obj:new(Bucket, Id, jsx:encode(maps:get(fields, Doc))),
+  Obj0 = riakc_obj:new(Bucket, Id, jsx:encode(maps:filter(fun(_K, null) -> false; (_K, _V) ->true end,maps:get(fields, Doc)))),
   MD1 = riakc_obj:get_update_metadata(Obj0),
   MD2 =
     riakc_obj:set_secondary_index(
