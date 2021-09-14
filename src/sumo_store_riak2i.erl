@@ -129,8 +129,10 @@ init(Opts) ->
   % which creates and initializes the storage backend.
   Backend = proplists:get_value(storage_backend, Opts),
   Conn = sumo_backend_riak:get_connection(Backend),
-  BucketType = sumo_utils:to_bin(sumo_utils:keyfind(bucket_type, Opts, <<"Logs">>)),
-  Bucket = sumo_utils:to_bin(sumo_utils:keyfind(bucket, Opts, <<"InstallLog">>)),
+  BucketType =
+    sumo_utils:to_bin(sumo_utils:keyfind(bucket_type, Opts, <<"Logs">>)),
+  Bucket =
+    sumo_utils:to_bin(sumo_utils:keyfind(bucket, Opts, <<"InstallLog">>)),
   GetOpts = proplists:get_value(get_options, Opts, []),
   PutOpts = proplists:get_value(put_options, Opts, []),
   DelOpts = proplists:get_value(delete_options, Opts, []),
@@ -151,13 +153,16 @@ init(Opts) ->
   when Doc :: sumo_internal:doc(),
        State :: state(),
        Response :: sumo_store:result(sumo_internal:doc(), state()).
-persist(#{fields := Fields} = Doc, #state{conn = Conn, bucket = Bucket, put_opts = Opts} = State) ->
+persist(
+  #{fields := Fields} = Doc,
+  #state{conn = Conn, bucket = Bucket, put_opts = Opts} = State
+) ->
   logger:debug("Persisting ~p.|~p", [Fields, Doc]),
   {Id, NewDoc} = new_doc(sleep(Doc), State),
   try update_obj(Conn, Bucket, Id, NewDoc, Opts) of
-   ok ->
-        {ok, wakeup(NewDoc), State};
-    Error -> 
+    ok -> {ok, wakeup(NewDoc), State};
+
+    Error ->
       logger:error("Persist Failed ~p", [Error]),
       {error, Error, State}
   catch
@@ -167,7 +172,8 @@ persist(#{fields := Fields} = Doc, #state{conn = Conn, bucket = Bucket, put_opts
   end.
 
 
--spec robj_to_doc(sumo:schema_name(), riakc_obj:riakc_obj()) -> sumo_internal:doc().
+-spec robj_to_doc(sumo:schema_name(), riakc_obj:riakc_obj()) ->
+  sumo_internal:doc().
 robj_to_doc(DocName, RObj) ->
   logger:debug("waking up doc ~p:~p", [DocName, RObj]),
   wakeup(sumo_internal:new_doc(DocName, RObj)).
@@ -196,9 +202,24 @@ fetch_obj(Conn, Bucket, Id, Opts) ->
 fetch(DocName, Id, State) ->
   #state{conn = Conn, bucket = Bucket, get_opts = Opts} = State,
   case fetch_obj(Conn, Bucket, sumo_utils:to_bin(Id), Opts) of
-    {ok, {riakc_obj, {_BucketType, _Bucket}, Key, _Context, [{_MetaData, RObj}], _, _}} ->
+    {
+      ok,
+      {
+        riakc_obj,
+        {_BucketType, _Bucket},
+        Key,
+        _Context,
+        [{_MetaData, RObj}],
+        _,
+        _
+      }
+    } ->
       logger:debug("Ok fetchin ~p:~p", [Key, RObj]),
-      {ok, robj_to_doc(DocName, jsx:decode(RObj, [{labels, atom}, return_maps])), State};
+      {
+        ok,
+        robj_to_doc(DocName, jsx:decode(RObj, [{labels, atom}, return_maps])),
+        State
+      };
 
     {error, {notfound, _Type = map}} -> {error, notfound, State};
 
@@ -232,8 +253,10 @@ fetch_docs(DocName, Conn, Bucket, Keys, Opts) ->
   ).
 
 
--spec delete_obj(connection(), bucket_and_type(), key(), options()) -> ok | {error, term()}.
-delete_obj(Conn, Bucket, Key, Opts) -> riakc_pb_socket:delete(Conn, Bucket, Key, Opts).
+-spec delete_obj(connection(), bucket_and_type(), key(), options()) ->
+  ok | {error, term()}.
+delete_obj(Conn, Bucket, Key, Opts) ->
+  riakc_pb_socket:delete(Conn, Bucket, Key, Opts).
 
 -spec delete_by(DocName, Conditions, State) ->
   Response
@@ -253,7 +276,8 @@ delete_by(DocName, Conditions, State) when is_list(Conditions) ->
   end;
 
 delete_by(DocName, Conditions, State) ->
-  #state{conn = _Conn, bucket = _Bucket, index = _Index, del_opts = _Opts} = State,
+  #state{conn = _Conn, bucket = _Bucket, index = _Index, del_opts = _Opts} =
+    State,
   _TranslatedConditions = transform_conditions(DocName, Conditions),
   {ok, 0, State}.
 
@@ -292,7 +316,8 @@ delete_all(_DocName, State) ->
        Response :: sumo_store:result([sumo_internal:doc()], state()).
 find_all(DocName, State) ->
   #state{conn = Conn, bucket = Bucket, get_opts = Opts} = State,
-  Get = fun (Kst, Acc) -> fetch_docs(DocName, Conn, Bucket, Kst, Opts) ++ Acc end,
+  Get =
+    fun (Kst, Acc) -> fetch_docs(DocName, Conn, Bucket, Kst, Opts) ++ Acc end,
   case stream_keys(Conn, Bucket, Get, []) of
     {ok, Docs} -> {ok, Docs, State};
     {error, Reason, Count} -> {error, {stream_keys, Reason, Count}, State}
@@ -307,7 +332,8 @@ find_all(DocName, State) ->
        Offset :: non_neg_integer(),
        State :: state(),
        Response :: sumo_store:result([sumo_internal:doc()], state()).
-find_all(DocName, Sort, Limit, Offset, State) -> find_by(DocName, [], Sort, Limit, Offset, State).
+find_all(DocName, Sort, Limit, Offset, State) ->
+  find_by(DocName, [], Sort, Limit, Offset, State).
 
 %% @doc
 %% find_by may be used in two ways: either with a given limit and offset or not
@@ -323,7 +349,8 @@ find_all(DocName, Sort, Limit, Offset, State) -> find_by(DocName, [], Sort, Limi
        Conditions :: sumo:conditions(),
        State :: state(),
        Response :: sumo_store:result([sumo_internal:doc()], state()).
-find_by(DocName, Conditions, State) -> find_by(DocName, Conditions, undefined, undefined, State).
+find_by(DocName, Conditions, State) ->
+  find_by(DocName, Conditions, undefined, undefined, State).
 
 -spec find_by(DocName, Conditions, Limit, Offset, State) ->
   Response
@@ -361,7 +388,8 @@ find_by(DocName, Conditions, Limit, Offset, State) ->
        State :: state(),
        Response :: sumo_store:result([sumo_internal:doc()], state()).
 find_by(DocName, Conditions, _Sort, _Limit, _Offset, State) ->
-  #state{conn = _Conn, bucket = _Bucket, index = _Index, get_opts = _Opts} = State,
+  #state{conn = _Conn, bucket = _Bucket, index = _Index, get_opts = _Opts} =
+    State,
   _TranslatedConditions = transform_conditions(DocName, Conditions),
   {ok, [], State}.
 
@@ -380,7 +408,12 @@ find_by(DocName, Conditions, _Sort, _Limit, _Offset, State) ->
 %% @private
 
 transform_conditions(DocName, Conditions) ->
-  sumo_utils:transform_conditions(fun validate_date/1, DocName, Conditions, [date, datetime]).
+  sumo_utils:transform_conditions(
+    fun validate_date/1,
+    DocName,
+    Conditions,
+    [date, datetime]
+  ).
 
 %% @private
 
@@ -394,15 +427,14 @@ validate_date({FieldType, _, FieldValue}) ->
   end.
 
 
-sleep(Doc) ->
-   sumo_utils:doc_transform(fun sleep_fun/4, Doc).
-    
+sleep(Doc) -> sumo_utils:doc_transform(fun sleep_fun/4, Doc).
 
 %% @private
 
 sleep_fun(_, FieldName, undefined, _) when FieldName /= id -> null;
 
-sleep_fun(FieldType, _, FieldValue, _) when FieldType =:= datetime; FieldType =:= date ->
+sleep_fun(FieldType, _, FieldValue, _)
+when FieldType =:= datetime; FieldType =:= date ->
   case {FieldType, sumo_utils:is_datetime(FieldValue)} of
     {datetime, true} -> iso8601:format(FieldValue);
     {date, true} -> iso8601:format({FieldValue, {0, 0, 0}});
@@ -430,7 +462,8 @@ wakeup(Doc) -> sumo_utils:doc_transform(fun wakeup_fun/4, Doc).
 wakeup_fun(_, _, undefined, _) -> undefined;
 wakeup_fun(_, _, <<"$nil">>, _) -> undefined;
 
-wakeup_fun(FieldType, _, FieldValue, _) when FieldType =:= datetime; FieldType =:= date ->
+wakeup_fun(FieldType, _, FieldValue, _)
+when FieldType =:= datetime; FieldType =:= date ->
   case {FieldType, sumo_utils:is_datetime(FieldValue)} of
     {datetime, true} -> iso8601:parse(FieldValue);
 
@@ -441,8 +474,11 @@ wakeup_fun(FieldType, _, FieldValue, _) when FieldType =:= datetime; FieldType =
     _ -> FieldValue
   end;
 
-wakeup_fun(integer, _, FieldValue, _) when is_binary(FieldValue) -> binary_to_integer(FieldValue);
-wakeup_fun(float, _, FieldValue, _) when is_binary(FieldValue) -> binary_to_float(FieldValue);
+wakeup_fun(integer, _, FieldValue, _) when is_binary(FieldValue) ->
+  binary_to_integer(FieldValue);
+
+wakeup_fun(float, _, FieldValue, _) when is_binary(FieldValue) ->
+  binary_to_float(FieldValue);
 
 wakeup_fun(boolean, _, FieldValue, _) when is_binary(FieldValue) ->
   binary_to_atom(FieldValue, utf8);
@@ -455,8 +491,8 @@ wakeup_fun(_, _, FieldValue, _) -> FieldValue.
 
 %% @private
 
-wakeup_custom(null, _FieldType) ->
-    null;
+wakeup_custom(null, _FieldType) -> null;
+
 wakeup_custom(FieldValue, FieldType) ->
   case lists:member(FieldType, [term, tuple, map, list]) of
     true -> binary_to_term(base64:decode(FieldValue));
@@ -465,24 +501,40 @@ wakeup_custom(FieldValue, FieldType) ->
 
 
 update_obj(Conn, Bucket, Id, Doc, _Opts) ->
-  Obj0 = riakc_obj:new(Bucket, Id, jsx:encode(maps:filter(fun(_K, null) -> false; (_K, _V) ->true end,maps:get(fields, Doc)))),
-  MD1 = riakc_obj:get_update_metadata(Obj0),
-  MD2 =
-    riakc_obj:set_secondary_index(
-      MD1,
-      [{{integer_index, "age"}, [25]}, {{binary_index, "name"}, [<<"John">>, <<"Doe">>]}]
+  Obj0 =
+    riakc_obj:new(
+      Bucket,
+      Id,
+      jsx:encode(
+        maps:filter(
+          fun (_K, null) -> false; (_K, _V) -> true end,
+          maps:get(fields, Doc)
+        )
+      )
     ),
   MD1 = riakc_obj:get_update_metadata(Obj0),
   MD2 =
     riakc_obj:set_secondary_index(
       MD1,
-      [{{integer_index, "age"}, [25]}, {{binary_index, "name"}, [<<"John">>, <<"Doe">>]}]
+      [
+        {{integer_index, "age"}, [25]},
+        {{binary_index, "name"}, [<<"John">>, <<"Doe">>]}
+      ]
+    ),
+  MD1 = riakc_obj:get_update_metadata(Obj0),
+  MD2 =
+    riakc_obj:set_secondary_index(
+      MD1,
+      [
+        {{integer_index, "age"}, [25]},
+        {{binary_index, "name"}, [<<"John">>, <<"Doe">>]}
+      ]
     ),
   Obj1 = riakc_obj:update_metadata(Obj0, MD2),
   logger:debug("Riak socket put ~p.", [Obj1]),
   Resp = riakc_pb_socket:put(Conn, Obj1),
   logger:debug("Riak socket put complete ~p.", [Resp]),
-Resp.
+  Resp.
 
 %% @private
 
@@ -505,7 +557,9 @@ new_doc(Doc, #state{conn = Conn, bucket = Bucket, put_opts = Opts}) ->
 
 -spec create_schema(Schema, State) ->
   Response
-  when Schema :: sumo_internal:schema(), State :: state(), Response :: sumo_store:result(state()).
+  when Schema :: sumo_internal:schema(),
+       State :: state(),
+       Response :: sumo_store:result(state()).
 create_schema(_Schema, State) -> {ok, State}.
 
 -spec count(DocName, State) ->
@@ -533,7 +587,14 @@ count_by(_DocName, _Conditions, #{conn := _Conn} = _State) -> 0.
 %% @private
 
 stream_keys(Conn, Bucket, F, Acc) ->
-  {ok, Ref} = riakc_pb_socket:get_index_eq(Conn, Bucket, <<"$bucket">>, <<"">>, [{stream, true}]),
+  {ok, Ref} =
+    riakc_pb_socket:get_index_eq(
+      Conn,
+      Bucket,
+      <<"$bucket">>,
+      <<"">>,
+      [{stream, true}]
+    ),
   receive_stream(Ref, F, Acc).
 
 %% @private
