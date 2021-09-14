@@ -154,20 +154,17 @@ init(Opts) ->
        State :: state(),
        Response :: sumo_store:result(sumo_internal:doc(), state()).
 persist(
-  #{fields := Fields} = Doc,
+  Doc,
   #state{conn = Conn, bucket = Bucket, put_opts = Opts} = State
 ) ->
-  logger:debug("Persisting ~p.|~p", [Fields, Doc]),
   {Id, NewDoc} = new_doc(sleep(Doc), State),
   try update_obj(Conn, Bucket, Id, NewDoc, Opts) of
     ok -> {ok, wakeup(NewDoc), State};
 
     Error ->
-      logger:error("Persist Failed ~p", [Error]),
       {error, Error, State}
   catch
     Error ->
-      logger:error("Persist Exception ~p:~p:~p", [Error]),
       {error, Error, State}
   end.
 
@@ -175,7 +172,6 @@ persist(
 -spec robj_to_doc(sumo:schema_name(), riakc_obj:riakc_obj()) ->
   sumo_internal:doc().
 robj_to_doc(DocName, RObj) ->
-  logger:debug("waking up doc ~p:~p", [DocName, RObj]),
   wakeup(sumo_internal:new_doc(DocName, RObj)).
 
 
@@ -187,10 +183,7 @@ robj_to_doc(DocName, RObj) ->
        Opts :: options(),
        Result :: {ok, riakc_obj:riakc_obj()} | {error, term()}.
 fetch_obj(Conn, Bucket, Id, Opts) ->
-  logger:debug("Fetching bucket ~p:~p:~p", [Bucket, Id, Opts]),
-  Fetched = riakc_pb_socket:get(Conn, Bucket, Id, Opts),
-  logger:debug("Fetched ~p", [Fetched]),
-  Fetched.
+  riakc_pb_socket:get(Conn, Bucket, Id, Opts).
 
 
 -spec fetch(DocName, Id, State) ->
@@ -207,14 +200,13 @@ fetch(DocName, Id, State) ->
       {
         riakc_obj,
         {_BucketType, _Bucket},
-        Key,
+        _Key,
         _Context,
         [{_MetaData, RObj}],
         _,
         _
       }
     } ->
-      logger:debug("Ok fetchin ~p:~p", [Key, RObj]),
       {
         ok,
         robj_to_doc(DocName, jsx:decode(RObj, [{labels, atom}, return_maps])),
@@ -224,10 +216,7 @@ fetch(DocName, Id, State) ->
     {error, {notfound, _Type = map}} -> {error, notfound, State};
 
     {error, Error} ->
-      logger:debug("Error fetchin ~p", [Error]),
-      {error, Error, State};
-
-    Unknown -> logger:debug("Unknown Error fetchin ~p", [Unknown])
+      {error, Error, State}
   end.
 
 
@@ -531,10 +520,7 @@ update_obj(Conn, Bucket, Id, Doc, _Opts) ->
       ]
     ),
   Obj1 = riakc_obj:update_metadata(Obj0, MD2),
-  logger:debug("Riak socket put ~p.", [Obj1]),
-  Resp = riakc_pb_socket:put(Conn, Obj1),
-  logger:debug("Riak socket put complete ~p.", [Resp]),
-  Resp.
+  riakc_pb_socket:put(Conn, Obj1).
 
 %% @private
 
