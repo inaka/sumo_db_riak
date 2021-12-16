@@ -200,7 +200,7 @@ fetch(
           Siblings ->
             Module = sumo_config:get_prop_value(DocName, module),
             {MD, V} = Module:conflict_resolver(Siblings),
-            Obj =
+            _Obj =
               riakc_obj:update_value(
                 riakc_obj:update_metadata(RiakObject, MD),
                 V
