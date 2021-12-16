@@ -183,7 +183,11 @@ fetch_obj(Conn, Bucket, Id, Opts) ->
        Id :: sumo:field_value(),
        State :: state(),
        Response :: sumo_store:result(sumo_internal:doc(), state()).
-fetch(DocName, Id, State) ->
+fetch(
+  DocName,
+  Id,
+  #state{conn = Conn, bucket = Bucket, get_opts = Opts} = State
+) ->
   #state{conn = Conn, bucket = Bucket, get_opts = Opts} = State,
   case fetch_obj(Conn, Bucket, sumo_utils:to_bin(Id), Opts) of
     {ok, RiakObject} ->
@@ -195,7 +199,14 @@ fetch(DocName, Id, State) ->
 
           Siblings ->
             Module = sumo_config:get_prop_value(DocName, module),
-            Module:conflict_resolver(Siblings)
+            {MD, V} = Module:conflict_resolver(Siblings),
+            Obj =
+              riakc_obj:update_value(
+                riakc_obj:update_metadata(RiakObject, MD),
+                V
+              ),
+            ok = riakc_pb_socket:put(Conn, Obj),
+            V
         end,
       {
         ok,
