@@ -205,7 +205,7 @@ fetch(
                 riakc_obj:update_metadata(RiakObject, MD),
                 V
               ),
-            ok = riakc_pb_socket:put(Conn, Obj),
+            %ok = riakc_pb_socket:put(Conn, Obj),
             V
         end,
       {
