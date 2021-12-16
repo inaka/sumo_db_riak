@@ -153,27 +153,19 @@ init(Opts) ->
   when Doc :: sumo_internal:doc(),
        State :: state(),
        Response :: sumo_store:result(sumo_internal:doc(), state()).
-persist(
-  Doc,
-  #state{conn = Conn, bucket = Bucket, put_opts = Opts} = State
-) ->
+persist(Doc, #state{conn = Conn, bucket = Bucket, put_opts = Opts} = State) ->
   {Id, NewDoc} = new_doc(sleep(Doc), State),
   try update_obj(Conn, Bucket, Id, NewDoc, Opts) of
     ok -> {ok, wakeup(NewDoc), State};
-
-    Error ->
-      {error, Error, State}
+    Error -> {error, Error, State}
   catch
-    Error ->
-      {error, Error, State}
+    Error -> {error, Error, State}
   end.
 
 
 -spec robj_to_doc(sumo:schema_name(), riakc_obj:riakc_obj()) ->
   sumo_internal:doc().
-robj_to_doc(DocName, RObj) ->
-  wakeup(sumo_internal:new_doc(DocName, RObj)).
-
+robj_to_doc(DocName, RObj) -> wakeup(sumo_internal:new_doc(DocName, RObj)).
 
 -spec fetch_obj(Conn, Bucket, Key, Opts) ->
   Result
@@ -185,7 +177,6 @@ robj_to_doc(DocName, RObj) ->
 fetch_obj(Conn, Bucket, Id, Opts) ->
   riakc_pb_socket:get(Conn, Bucket, Id, Opts).
 
-
 -spec fetch(DocName, Id, State) ->
   Response
   when DocName :: sumo:schema_name(),
@@ -195,28 +186,25 @@ fetch_obj(Conn, Bucket, Id, Opts) ->
 fetch(DocName, Id, State) ->
   #state{conn = Conn, bucket = Bucket, get_opts = Opts} = State,
   case fetch_obj(Conn, Bucket, sumo_utils:to_bin(Id), Opts) of
-    {
-      ok,
-      {
-        riakc_obj,
-        {_BucketType, _Bucket},
-        _Key,
-        _Context,
-        [{_MetaData, RObj}],
-        _,
-        _
-      }
-    } ->
+    {ok, RiakObject} ->
+      {riakc_obj, {_BucketType, _Bucket}, _Key, _Context, _, _, _} = RiakObject,
+      Value =
+        case riakc_obj:get_contents(RiakObject) of
+          [] -> throw(no_value);
+          [{_MD, V}] -> V;
+
+          Siblings ->
+            Module = sumo_config:get_prop_value(DocName, module),
+            Module:conflict_resolver(Siblings)
+        end,
       {
         ok,
-        robj_to_doc(DocName, jsx:decode(RObj, [{labels, atom}, return_maps])),
+        robj_to_doc(DocName, jsx:decode(Value, [{labels, atom}, return_maps])),
         State
       };
 
     {error, {notfound, _Type = map}} -> {error, notfound, State};
-
-    {error, Error} ->
-      {error, Error, State}
+    {error, Error} -> {error, Error, State}
   end.
 
 
