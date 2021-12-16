@@ -215,7 +215,8 @@ fetch(
       };
 
     {error, {notfound, _Type = map}} -> {error, notfound, State};
-    {error, Error} -> {error, Error, State}
+    {error, Error} -> {error, Error, State};
+    undef -> {error, undef, State}
   end.
 
 
