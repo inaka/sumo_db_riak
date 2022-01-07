@@ -63,7 +63,8 @@
     find_by/5,
     find_by/6,
     count/2,
-    count_by/3
+    count_by/3,
+    index_field/5
   ]
 ).
 
@@ -129,10 +130,8 @@ init(Opts) ->
   % which creates and initializes the storage backend.
   Backend = proplists:get_value(storage_backend, Opts),
   Conn = sumo_backend_riak:get_connection(Backend),
-  BucketType =
-    sumo_utils:to_bin(sumo_utils:keyfind(bucket_type, Opts, <<"Logs">>)),
-  Bucket =
-    sumo_utils:to_bin(sumo_utils:keyfind(bucket, Opts, <<"InstallLog">>)),
+  BucketType = sumo_utils:to_bin(sumo_utils:keyfind(bucket_type, Opts)),
+  Bucket = sumo_utils:to_bin(sumo_utils:keyfind(bucket, Opts)),
   GetOpts = proplists:get_value(get_options, Opts, []),
   PutOpts = proplists:get_value(put_options, Opts, []),
   DelOpts = proplists:get_value(delete_options, Opts, []),
@@ -177,6 +176,22 @@ robj_to_doc(DocName, RObj) -> wakeup(sumo_internal:new_doc(DocName, RObj)).
 fetch_obj(Conn, Bucket, Id, Opts) ->
   riakc_pb_socket:get(Conn, Bucket, Id, Opts).
 
+check_resolve_siblings(RiakObject, DocName, Conn) ->
+  {riakc_obj, {_BucketType, _Bucket}, _Key, _Context, _, _, _} = RiakObject,
+  case riakc_obj:get_contents(RiakObject) of
+    [] -> throw(no_value);
+    [{_MD, V}] -> V;
+
+    Siblings ->
+      Module = sumo_config:get_prop_value(DocName, module),
+      {MD, V} = Module:conflict_resolver(Siblings),
+      Obj =
+        riakc_obj:update_value(riakc_obj:update_metadata(RiakObject, MD), V),
+      ok = riakc_pb_socket:put(Conn, Obj),
+      V
+  end.
+
+
 -spec fetch(DocName, Id, State) ->
   Response
   when DocName :: sumo:schema_name(),
@@ -188,29 +203,17 @@ fetch(
   Id,
   #state{conn = Conn, bucket = Bucket, get_opts = Opts} = State
 ) ->
-  #state{conn = Conn, bucket = Bucket, get_opts = Opts} = State,
   case fetch_obj(Conn, Bucket, sumo_utils:to_bin(Id), Opts) of
     {ok, RiakObject} ->
-      {riakc_obj, {_BucketType, _Bucket}, _Key, _Context, _, _, _} = RiakObject,
-      Value =
-        case riakc_obj:get_contents(RiakObject) of
-          [] -> throw(no_value);
-          [{_MD, V}] -> V;
-
-          Siblings ->
-            Module = sumo_config:get_prop_value(DocName, module),
-            {MD, V} = Module:conflict_resolver(Siblings),
-            Obj =
-              riakc_obj:update_value(
-                riakc_obj:update_metadata(RiakObject, MD),
-                V
-              ),
-            ok = riakc_pb_socket:put(Conn, Obj),
-            V
-        end,
       {
         ok,
-        robj_to_doc(DocName, jsx:decode(Value, [{labels, atom}, return_maps])),
+        robj_to_doc(
+          DocName,
+          jsx:decode(
+            check_resolve_siblings(RiakObject, DocName, Conn),
+            [{labels, atom}, return_maps]
+          )
+        ),
         State
       };
 
@@ -489,53 +492,91 @@ wakeup_custom(FieldValue, FieldType) ->
   end.
 
 
-update_obj(Conn, Bucket, Id, Doc, _Opts) ->
-  Obj0 =
-    riakc_obj:new(
-      Bucket,
-      Id,
-      jsx:encode(
-        maps:filter(
-          fun (_K, null) -> false; (_K, _V) -> true end,
-          maps:get(fields, Doc)
-        )
-      )
+-spec index_field(Doc, Key, Value, Type, Accumulator) ->
+  Accumulator
+  when Doc :: sumo_internal:doc(),
+       Key :: atom(),
+       Value :: any(),
+       Type :: atom(),
+       Accumulator :: list().
+index_field(_Doc, _Key, null, _, Acc) -> Acc;
+
+index_field(_Doc, Key, Value, integer, Acc) ->
+  lists:append(Acc, [{{integer_index, Key}, [Value]}]);
+
+index_field(_Doc, Key, Value, float, Acc) ->
+  lists:append(Acc, [{{binary_index, Key}, [float_to_binary(Value)]}]);
+
+index_field(_Doc, Key, Value, datetime, Acc) ->
+  lists:append(Acc, [{{binary_index, Key}, [float_to_binary(Value)]}]);
+
+index_field(_Doc, Key, Value, string, Acc) ->
+  lists:append(Acc, [{{binary_index, Key}, [Value]}]).
+
+build_index(Doc) ->
+  DocName = sumo_internal:doc_name(Doc),
+  Schema = sumo_internal:get_schema(DocName),
+  SchemaFields = sumo_internal:schema_fields(Schema),
+  Module = sumo_config:get_prop_value(DocName, module),
+  Index =
+    lists:foldl(
+      fun
+        (Field, Acc) ->
+          FieldType = sumo_internal:field_type(Field),
+          FieldName = sumo_internal:field_name(Field),
+          FieldValue = sumo_internal:get_field(FieldName, Doc),
+          %FieldAttrs = sumo_internal:field_attrs(Field),
+          Module:index_field(
+            maps:get(fields, Doc),
+            atom_to_list(FieldName),
+            FieldValue,
+            FieldType,
+            Acc
+          )
+      end,
+      [],
+      SchemaFields
     ),
-  MD1 = riakc_obj:get_update_metadata(Obj0),
-  MD2 =
-    riakc_obj:set_secondary_index(
-      MD1,
-      [
-        {{integer_index, "age"}, [25]},
-        {{binary_index, "name"}, [<<"John">>, <<"Doe">>]}
-      ]
+  logger:debug("Build index ~p", [Index]),
+  Index.
+
+
+update_obj(Conn, Bucket, Id, Doc0, _Opts) ->
+  Doc =
+    maps:filter(
+      fun (_K, null) -> false; (_K, _V) -> true end,
+      maps:get(fields, Doc0)
     ),
-  MD1 = riakc_obj:get_update_metadata(Obj0),
-  MD2 =
-    riakc_obj:set_secondary_index(
-      MD1,
-      [
-        {{integer_index, "age"}, [25]},
-        {{binary_index, "name"}, [<<"John">>, <<"Doe">>]}
-      ]
-    ),
-  Obj1 = riakc_obj:update_metadata(Obj0, MD2),
-  riakc_pb_socket:put(Conn, Obj1).
+  case fetch_obj(Conn, Bucket, sumo_utils:to_bin(Id), []) of
+    {ok, RiakObject} ->
+      riakc_obj:update_value(RiakObject, jsx:encode(Doc)),
+      MD1 = riakc_obj:get_update_metadata(RiakObject),
+      MD2 = riakc_obj:set_secondary_index(MD1, build_index(Doc0)),
+      Obj1 = riakc_obj:update_metadata(RiakObject, MD2),
+      riakc_pb_socket:put(Conn, Obj1);
+
+    {error, notfound} ->
+      RiakObject = riakc_obj:new(Bucket, Id, jsx:encode(Doc)),
+      MD1 = riakc_obj:get_update_metadata(RiakObject),
+      MD2 = riakc_obj:set_secondary_index(MD1, build_index(Doc0)),
+      Obj1 = riakc_obj:update_metadata(RiakObject, MD2),
+      riakc_pb_socket:put(Conn, Obj1);
+
+    {error, Error} -> {error, Error};
+    undef -> {error, undef}
+  end.
+
+
+%Module = sumo_config:get_prop_value(DocName, module),
 
 %% @private
 
-new_doc(Doc, #state{conn = Conn, bucket = Bucket, put_opts = Opts}) ->
+new_doc(Doc, _State) ->
   DocName = sumo_internal:doc_name(Doc),
   IdField = sumo_internal:id_field_name(DocName),
   Id =
     case sumo_internal:get_field(IdField, Doc) of
-      undefined ->
-        case update_obj(Conn, Bucket, undefined, Doc, Opts) of
-          {ok, RiakMapId} -> RiakMapId;
-          {error, Error} -> exit(Error);
-          Unexpected -> exit({unexpected, Unexpected})
-        end;
-
+      undefined -> throw({error, noid});
       Id0 -> sumo_utils:to_bin(Id0)
     end,
   {Id, sumo_internal:set_field(IdField, Id, Doc)}.
@@ -579,6 +620,25 @@ stream_keys(Conn, Bucket, F, Acc) ->
       Bucket,
       <<"$bucket">>,
       <<"">>,
+      [{stream, true}]
+    ),
+  receive_stream(Ref, F, Acc).
+
+
+stream_index_eq(Conn, Bucket, F, Index, Key, Acc) ->
+  {ok, Ref} =
+    riakc_pb_socket:get_index_eq(Conn, Bucket, Index, Key, [{stream, true}]),
+  receive_stream(Ref, F, Acc).
+
+
+stream_index_range(Conn, Bucket, F, Index, StartKey, EndKey, Acc) ->
+  {ok, Ref} =
+    riakc_pb_socket:get_index_range(
+      Conn,
+      Bucket,
+      Index,
+      StartKey,
+      EndKey,
       [{stream, true}]
     ),
   receive_stream(Ref, F, Acc).
