@@ -271,6 +271,7 @@ delete_by(DocName, Conditions, State) ->
   #state{conn = _Conn, bucket = _Bucket, index = _Index, del_opts = _Opts} =
     State,
   _TranslatedConditions = transform_conditions(DocName, Conditions),
+  logger:debug("Conditions ~p", [Conditions]),
   {ok, 0, State}.
 
 
@@ -382,7 +383,8 @@ find_by(DocName, Conditions, Limit, Offset, State) ->
 find_by(DocName, Conditions, _Sort, _Limit, _Offset, State) ->
   #state{conn = _Conn, bucket = _Bucket, index = _Index, get_opts = _Opts} =
     State,
-  _TranslatedConditions = transform_conditions(DocName, Conditions),
+  TranslatedConditions = transform_conditions(DocName, Conditions),
+  logger:debug("Conditions ~p", [TranslatedConditions]),
   {ok, [], State}.
 
 %%SortOpts = build_sort(Sort),
@@ -411,11 +413,8 @@ transform_conditions(DocName, Conditions) ->
 
 validate_date({FieldType, _, FieldValue}) ->
   case {FieldType, sumo_utils:is_datetime(FieldValue)} of
-    {datetime, true} -> iso8601:format(FieldValue);
-
-    {date, true} ->
-      DateTime = {FieldValue, {0, 0, 0}},
-      iso8601:format(DateTime)
+    {datetime, true} -> date_util:datetime_to_epoch(FieldValue);
+    {date, true} -> date_util:datetime_to_epoch({FieldValue, {0, 0, 0}})
   end.
 
 
@@ -426,11 +425,16 @@ sleep(Doc) -> sumo_utils:doc_transform(fun sleep_fun/4, Doc).
 sleep_fun(_, FieldName, undefined, _) when FieldName /= id -> null;
 
 sleep_fun(FieldType, _, FieldValue, _)
+when FieldType =:= datetime and is_binary(FieldValue);
+     FieldType =:= date and is_binary(FieldValue) ->
+  iso8601:parse(FieldValue);
+
+sleep_fun(FieldType, _, FieldValue, _)
 when FieldType =:= datetime; FieldType =:= date ->
   case {FieldType, sumo_utils:is_datetime(FieldValue)} of
-    {datetime, true} -> iso8601:format(FieldValue);
-    {date, true} -> iso8601:format({FieldValue, {0, 0, 0}});
-    _ -> FieldValue
+    {datetime, true} -> date_util:datetime_to_epoch(FieldValue);
+    {date, true} -> date_util:datetime_to_epoch({FieldValue, {0, 0, 0}});
+    _ -> date_util:datetime_to_epoch(iso8601:parse(FieldValue))
   end;
 
 sleep_fun(custom, _, FieldValue, FieldAttrs) ->
@@ -455,16 +459,14 @@ wakeup_fun(_, _, undefined, _) -> undefined;
 wakeup_fun(_, _, <<"$nil">>, _) -> undefined;
 
 wakeup_fun(FieldType, _, FieldValue, _)
-when FieldType =:= datetime; FieldType =:= date ->
-  case {FieldType, sumo_utils:is_datetime(FieldValue)} of
-    {datetime, true} -> iso8601:parse(FieldValue);
+when FieldType =:= datetime; FieldType =:= date; is_binary(FieldValue) ->
+  iso8601:parse(FieldValue);
 
-    {date, true} ->
-      {Date, _} = iso8601:parse(FieldValue),
-      Date;
-
-    _ -> FieldValue
-  end;
+wakeup_fun(FieldType, _, FieldValue, _)
+when FieldType =:= datetime;
+     FieldType =:= date;
+     is_float(FieldValue) or is_integer(FieldValue) ->
+  date_util:timestamp_to_datetime(FieldValue);
 
 wakeup_fun(integer, _, FieldValue, _) when is_binary(FieldValue) ->
   binary_to_integer(FieldValue);
@@ -625,23 +627,23 @@ stream_keys(Conn, Bucket, F, Acc) ->
   receive_stream(Ref, F, Acc).
 
 
-stream_index_eq(Conn, Bucket, F, Index, Key, Acc) ->
-  {ok, Ref} =
-    riakc_pb_socket:get_index_eq(Conn, Bucket, Index, Key, [{stream, true}]),
-  receive_stream(Ref, F, Acc).
-
-
-stream_index_range(Conn, Bucket, F, Index, StartKey, EndKey, Acc) ->
-  {ok, Ref} =
-    riakc_pb_socket:get_index_range(
-      Conn,
-      Bucket,
-      Index,
-      StartKey,
-      EndKey,
-      [{stream, true}]
-    ),
-  receive_stream(Ref, F, Acc).
+%stream_index_eq(Conn, Bucket, F, Index, Key, Acc) ->
+%  {ok, Ref} =
+%    riakc_pb_socket:get_index_eq(Conn, Bucket, Index, Key, [{stream, true}]),
+%  receive_stream(Ref, F, Acc).
+%
+%
+%stream_index_range(Conn, Bucket, F, Index, StartKey, EndKey, Acc) ->
+%  {ok, Ref} =
+%    riakc_pb_socket:get_index_range(
+%      Conn,
+%      Bucket,
+%      Index,
+%      StartKey,
+%      EndKey,
+%      [{stream, true}]
+%    ),
+%  receive_stream(Ref, F, Acc).
 
 %% @private
 
