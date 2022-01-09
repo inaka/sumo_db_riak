@@ -1,21 +1,18 @@
-{application, sumo_db_riak, [
-  {description, "SumoDB Riak Adapter."},
-  {vsn, "0.1.0"},
-  {id, "sumo_db_riak"},
-  {registered, []},
-  {applications, [
-    kernel,
-    stdlib,
-    sumo_db,
-    riakc
-  ]},
-  {modules, []},
-  {mod, {sumo_db_riak, []}},
-  {env, []},
-  {maintainers, ["Inaka"]},
-  {licenses, ["Apache 2.0"]},
-  {links, [
-    {"Github", "https://github.com/inaka/sumo_db_riak"}
-  ]},
-  {build_tools, ["rebar3"]}
-]}.
+{
+  application,
+  sumo_db_riak,
+  [
+    {description, "SumoDB Riak Adapter."},
+    {vsn, "0.1.0"},
+    {id, "sumo_db_riak"},
+    {registered, []},
+    {applications, [kernel, stdlib, sumo_db, riakc]},
+    {modules, []},
+    {mod, {sumo_db_riak, []}},
+    {env, []},
+    {maintainers, ["Inaka"]},
+    {licenses, ["Apache 2.0"]},
+    {links, [{"Github", "https://github.com/inaka/sumo_db_riak"}]},
+    {build_tools, ["rebar3"]}
+  ]
+}.
